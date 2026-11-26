@@ -501,6 +501,9 @@ kbd {
 .plan__head, .resolution__head { display: flex; align-items: center; gap: var(--s-2); color: var(--ink); }
 .plan__label, .resolution__label { font-weight: 600; }
 .plan__file, .resolution__owner { margin-left: auto; color: var(--stone); }
+.plan { background: var(--surface-soft); }
+.plan__head { color: var(--link); }
+.plan__goal { font-weight: 500; color: var(--ink); }
 .plan__goal { color: var(--charcoal); font-size: 14px; }
 .plan__steps { display: flex; flex-direction: column; gap: var(--s-1); list-style: none; padding: 0; margin: 0; }
 .plan__step { display: grid; grid-template-columns: 16px 1fr; gap: var(--s-2); align-items: start; font-size: 14px; color: var(--charcoal); }
@@ -511,9 +514,16 @@ kbd {
 .plan__step--done > span, .plan__step--skipped > span { color: var(--stone); }
 .plan__note { color: var(--stone); }
 
-.resolution--ok { border-color: var(--success-bg); box-shadow: inset 3px 0 0 var(--success); }
-.resolution--warn { border-color: var(--warning-bg); box-shadow: inset 3px 0 0 var(--warning); }
-.resolution--tint { border-color: var(--primary-tint-strong); box-shadow: inset 3px 0 0 var(--primary); }
+/* Resolution follows the approval card: whole border carries the state, no side rail. */
+.resolution { border-radius: var(--r-xl); padding: var(--s-4) var(--s-5); gap: var(--s-3); }
+.resolution--ok { border-color: var(--success); }
+.resolution--warn { border-color: var(--warning); }
+.resolution--tint { border-color: var(--primary); }
+.resolution--ok .resolution__head { color: var(--success); }
+.resolution--warn .resolution__head { color: var(--warning); }
+.resolution--tint .resolution__head { color: var(--link); }
+.resolution__label { font-size: 13px; }
+.resolution .eyebrow { margin-bottom: 2px; }
 .resolution__summary { font-size: 15px; line-height: 1.55; color: var(--ink); }
 .resolution__cause { font-size: 14px; color: var(--charcoal); }
 .resolution__list { margin: var(--s-1) 0 0; padding-left: var(--s-5); font-size: 14px; line-height: 1.55; color: var(--charcoal); }
@@ -530,3 +540,9 @@ kbd {
 
 .composer__mode { display: inline-flex; align-items: center; gap: var(--s-1); }
 .composer__mode.is-on { background: var(--primary-tint); color: var(--link); border-color: var(--primary-tint-strong); }
+ul.resolution__list { list-style: disc; }
+ol.resolution__list { list-style: decimal; }
+.resolution__list li::marker { color: var(--stone); }
+.resolution__head { flex-wrap: wrap; }
+.resolution__label { white-space: nowrap; }
+@media (max-width: 767px) { .resolution__owner { display: none; } .resolution { padding: var(--s-4); } }

@@ -305,6 +305,32 @@ export const seedMessages: Message[] = [
     id: 'm2',
     role: 'agent',
     time: '16:41',
+    step: 6,
+    thinking:
+      'Start from the CMDB so every other lookup uses the right Dynatrace entity. Then check open problems and error logs for csp-api, and look for a change in the last two hours that lines up with the start time. If it matches a known pattern, the KB should say what to do next.',
+    plan: {
+      goal: 'Find why Clinical Supply Portal orders fail with 503',
+      steps: [
+        { title: 'Look up the app and its owning team in the CMDB', status: 'done' },
+        { title: 'Check open Dynatrace problems and service health', status: 'done' },
+        { title: 'Search error logs for csp-api', status: 'done' },
+        { title: 'Find changes on the app in the last 2 hours', status: 'done', note: 'CHG0045817' },
+        { title: 'Match against known issues in the knowledge base', status: 'done', note: 'KB0011201' },
+      ],
+    },
+    resolution: {
+      status: 'resolved',
+      summary: 'Release 2.14.0 is exhausting the CSP Orders DB connection pool, so order submissions time out and return 503.',
+      likely_cause: 'A connection leak introduced in 2.14.0 (CHG0045817), the same pattern as INC0103990.',
+      confidence: 'high',
+      evidence: [
+        'P-2511734: failure rate 12.4% vs 0.3% last week, root cause csp-orders-db',
+        'Logs: HikariPool connection timeouts, pool at 49/50',
+        'Errors began about 3 minutes after 2.14.0 started',
+      ],
+      next_steps: ['Roll back to 2.13.1 under the CHG0045817 backout plan (lead approval)', 'Find and fix the leak before re-releasing 2.14.0'],
+      owner: 'APP-ORDER-MGMT-L2',
+    },
     text:
       'Dynatrace problem **P-2511734** shows the failure rate on `csp-api` at 12.4% (0.3% this time last week), with `csp-orders-db` as the root cause. The logs show the DB connection pool is exhausted. This started about 3 minutes after **CHG0045817** deployed release 2.14.0, and it matches **KB0011201** from the last time this happened (INC0103990).',
     tools: [
