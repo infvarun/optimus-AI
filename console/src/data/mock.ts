@@ -51,11 +51,26 @@ export type Message =
       resolution?: Resolution
       /** Model calls so far in this run (`turn_start.step`). */
       step?: number
-      /** Harness notices: nudges, limits, errors. */
-      notices?: { kind: 'info' | 'warn' | 'error'; text: string }[]
+      /** What the run is doing now; drives the animated status line. */
+      phase?: RunPhase
+      /** Text the model wrote in earlier steps (interim narration). Shown in Activity, not as the answer. */
+      notes?: string[]
+      /** ms timestamps for the elapsed-time label. */
+      startedAt?: number
+      endedAt?: number
+      /** How the run ended (harness `done.outcome`, or 'stopped' when the user pressed Stop). */
+      outcome?: 'resolved' | 'answered' | 'no_answer' | 'no_resolution' | 'timeout' | 'max_tool_calls' | 'error' | 'stopped'
+      /** Times the harness nudged the agent to keep going. Internal: shown only as a count in Activity. */
+      continues?: number
+      /** A failure the user can act on (network, harness error). */
+      error?: string
+      /** The prompt that started this run, for Retry. */
+      prompt?: string
       /** Scratch files the agent wrote this run. */
       files?: string[]
     }
+
+export type RunPhase = 'starting' | 'thinking' | 'planning' | 'checking' | 'writing' | 'done'
 
 // ---------- CMDB: apps and teams ----------
 
@@ -306,6 +321,10 @@ export const seedMessages: Message[] = [
     role: 'agent',
     time: '16:41',
     step: 6,
+    phase: 'done',
+    outcome: 'resolved',
+    startedAt: 0,
+    endedAt: 23_400,
     thinking:
       'Start from the CMDB so every other lookup uses the right Dynatrace entity. Then check open problems and error logs for csp-api, and look for a change in the last two hours that lines up with the start time. If it matches a known pattern, the KB should say what to do next.',
     plan: {

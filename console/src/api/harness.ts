@@ -39,7 +39,7 @@ export type HarnessEvent =
   | { type: 'usage'; data: Record<string, unknown> }
   | { type: 'compacted' }
   | { type: 'error'; message: string }
-  | { type: 'done'; outcome?: string; toolCalls?: number; steps?: number; continues?: number }
+  | { type: 'done'; outcome?: 'resolved' | 'answered' | 'no_answer' | 'error' | 'timeout' | 'max_tool_calls'; answer?: string; toolCalls?: number; steps?: number; continues?: number }
 
 export interface Health {
   ok: boolean
@@ -55,6 +55,12 @@ function headers(json = false): HeadersInit {
   return h
 }
 
+export class HarnessError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message)
+  }
+}
+
 async function check(res: Response): Promise<Response> {
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`
@@ -64,7 +70,7 @@ async function check(res: Response): Promise<Response> {
     } catch {
       /* not JSON */
     }
-    throw new Error(msg)
+    throw new HarnessError(msg, res.status)
   }
   return res
 }
@@ -99,6 +105,8 @@ export async function readFile(sessionId: string, name: string): Promise<string>
  * Send a message and call onEvent for each streamed event until the run ends.
  * Uses fetch + a stream reader (EventSource can't POST). Aborting the signal
  * closes the stream, and the harness then aborts the agent run.
+ * Tolerant of CRLF line endings, `event:` lines, comments and malformed frames.
+ * Resolves with true if a `done` event arrived, false if the stream just ended.
  */
 export async function streamMessage(
   sessionId: string,
@@ -106,32 +114,51 @@ export async function streamMessage(
   mode: RunMode,
   onEvent: (e: HarnessEvent) => void,
   signal?: AbortSignal,
-): Promise<void> {
-  const res = await check(
-    await fetch(`${BASE}/api/sessions/${sessionId}/messages`, {
-      method: 'POST',
-      headers: headers(true),
-      body: JSON.stringify({ prompt, mode }),
-      signal,
-    }),
-  )
-  if (!res.body) throw new Error('No response stream')
+  /** What's in view (app, incident…), so "this app" resolves without the agent asking. Max 8 keys, 200 chars each. */
+  context?: Record<string, string>,
+): Promise<boolean> {
+  const res = await fetch(`${BASE}/api/sessions/${sessionId}/messages`, {
+    method: 'POST',
+    headers: headers(true),
+    body: JSON.stringify({ prompt, mode, ...(context ? { context } : {}) }),
+    signal,
+  })
+  if (!res.ok) await check(res)
+  if (!res.body) throw new HarnessError('The harness sent no response stream.')
+
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
   let buf = ''
+  let sawDone = false
+  const handle = (frame: string) => {
+    let eventName = ''
+    const data: string[] = []
+    for (const raw of frame.split('\n')) {
+      const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw
+      if (!line || line.startsWith(':')) continue
+      if (line.startsWith('event:')) eventName = line.slice(6).trim()
+      else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''))
+    }
+    if (!data.length) return
+    try {
+      const parsed = JSON.parse(data.join('\n')) as Partial<HarnessEvent>
+      const ev = (parsed.type ? parsed : { ...parsed, type: eventName }) as HarnessEvent
+      if (!ev.type) return
+      if (ev.type === 'done') sawDone = true
+      onEvent(ev)
+    } catch {
+      console.warn('Skipped a malformed stream frame', frame.slice(0, 200))
+    }
+  }
   for (;;) {
     const { value, done } = await reader.read()
     if (done) break
-    buf += value
+    buf += value.replace(/\r\n/g, '\n')
     let i: number
     while ((i = buf.indexOf('\n\n')) >= 0) {
-      const frame = buf.slice(0, i)
+      handle(buf.slice(0, i))
       buf = buf.slice(i + 2)
-      const data = frame
-        .split('\n')
-        .filter((l) => l.startsWith('data: '))
-        .map((l) => l.slice(6))
-        .join('\n')
-      if (data) onEvent(JSON.parse(data) as HarnessEvent)
     }
   }
+  if (buf.trim()) handle(buf)
+  return sawDone
 }

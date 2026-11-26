@@ -54,3 +54,18 @@ the harness exposes read-only tools only, so a write tool plus a lead-approval s
 6. **Harness event shapes** (tool calls, approval requests) are guessed from Copilot SDK concepts.
 7. **Model badge shows Ollama · qwen3:8b,** matching the harness default. It should read `/healthz` once wired.
 8. **Who can approve.** The card says a team lead must approve, but the demo lets anyone click Approve. Real role checks belong in the harness.
+
+## Agent run UI (v0.2)
+- **One status pill per run.** While running it shows a pulsing dot, a shimmering label for the current step
+  ("Checking Dynatrace problems…"), elapsed time and the number of checks. When done it reads "Worked 14s · 5 checks"
+  and expands to the Activity panel (thought process, notes from earlier steps, every tool call with its output).
+  Activity opens while the agent works and folds away (animated) when it finishes.
+- **Only the final step's text is the answer.** Text from earlier steps goes to Activity as notes, so interim
+  narration never piles up as repeats.
+- **Harness bookkeeping stays out of sight.** `continue` nudges are a count in Activity; limits become one quiet
+  footnote; a run with no usable answer shows one error card with Retry.
+- **Answers render as Markdown** (tables, lists, headings, code) via react-markdown + remark-gfm, with no raw HTML.
+  INC / CHG / RITM / KB / Dynatrace P- ids become colour-coded chips.
+- **Robustness:** tolerant SSE parser, deltas batched per animation frame, session recreated once if the harness
+  restarted (404), friendly errors for 409/429/401/5xx/network, Stop marks the run "Stopped by you".
+- The demo plays scripted runs through the same event reducer as live runs (`src/run/demoScripts.ts`).
