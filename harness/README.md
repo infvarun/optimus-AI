@@ -4,8 +4,11 @@ The agent backend for Optimus: a Copilot-like assistant for enterprise **applica
 operations**. Built on the Copilot SDK for Python ([`microsoft-copilot-sdk`](https://pypi.org/project/microsoft-copilot-sdk/) 2.0.3)
 with **bring-your-own-key (BYOK)**. No GitHub Copilot login is used for model calls.
 
-- **Sessions**: create, list, abort, delete. Each one is a Copilot SDK session with its own history.
-- **Streaming**: each reply streams back as Server-Sent Events (text, tool calls, tool results, usage, done).
+- **An agent that keeps going**: it plans, calls tools, reads the results, revises its hypothesis and calls more
+  tools until it can submit a structured resolution. See [How the agent loop works](#how-the-agent-loop-works).
+- **Plan mode**: writes `Plan.md` (and scratch notes like `context.md`) for review before it investigates.
+- **Sessions**: create, list, abort, delete. Each one is a Copilot SDK session with its own history and workspace folder.
+- **Streaming**: every step streams as Server-Sent Events: thinking, text, tool calls and results, plan updates, the resolution.
 - **Ops tools (stubs, invented data)** modelled on the systems in use:
   - ServiceNow: `servicenow_cmdb_lookup`, `servicenow_incident_search`, `servicenow_change_search`, `servicenow_kb_search`
   - Dynatrace: `dynatrace_problems`, `dynatrace_service_health`, `dynatrace_log_search`
@@ -40,8 +43,13 @@ python scripts/smoke.py "Is LabTrack LIMS healthy? Any changes coming up?"
 
 Interactive API docs: http://127.0.0.1:8787/docs
 
-`scripts/smoke.py` exits 0 if the model called at least one tool and answered, 2 if it answered without using any
-tool, and 1 on error.
+`scripts/smoke.py` prints each step, the thinking (dimmed), tool calls, plan updates and the final resolution. It exits
+0 if the agent used tools and submitted a resolution, 2 if it never did, and 1 on error or a limit.
+
+**Which model.** Use `qwen3` from Ollama: it does tool calling and thinking, and Ollama streams its thinking
+separately so the console can show it. `qwen3:8b` (~6 GB) runs on most laptops; `qwen3:14b` (~10 GB) generally follows the
+plan-investigate-resolve loop and recovers from tool errors better if you have the memory (expectation, not yet measured here). Expect
+a full investigation to take a few minutes on a laptop.
 
 **Ollama gotchas (read if answers look wrong):**
 - **Context length.** Before the user says anything, the request is about 13 KB (roughly 3.5k tokens): the SDK's
@@ -57,6 +65,30 @@ tool, and 1 on error.
 python scripts/mock_llm.py &
 LLM_PROVIDER_TYPE=openai LLM_BASE_URL=http://127.0.0.1:11435/v1 LLM_MODEL=mock-1 python -m optimus_harness
 ```
+
+## How the agent loop works
+
+Each user message starts a **run**:
+
+1. **Inner loop (Copilot runtime):** model → tool calls → results → model → … until the model stops calling tools.
+   Tool argument mistakes come back to the model as readable errors (e.g. *missing required argument: app*), so it
+   fixes the call and retries.
+2. **Outer loop (harness):** the run is only finished when the agent calls `submit_resolution`
+   (status `resolved`, `needs_human`, `needs_info`, `answered` or `plan_ready`). If the model stops early with plain
+   text, which small local models often do, the harness nudges it to continue, up to `AGENT_MAX_CONTINUES` times.
+3. **Working memory:** for multi-step work the agent writes `Plan.md` with `update_plan` and keeps findings in
+   `context.md` with `workspace_write`, reading them back later. Files live in
+   `<HARNESS_DATA_DIR>/workspaces/<session id>/`; the tools can't write anywhere else (plain `*.md` names only,
+   64 KB per file, 20 files).
+4. **Long runs:** the runtime is told the model's real context window (`LLM_CONTEXT_TOKENS`) and compacts older
+   context in the background before the model server would silently truncate it.
+5. **Guards:** `AGENT_MAX_TOOL_CALLS` (30) and `AGENT_TURN_TIMEOUT_SECONDS` (900) per run. On breach the run is
+   aborted and a `limit` event is sent.
+
+**Plan mode** (`"mode": "plan"` on the message, or `python scripts/smoke.py --plan`): the agent identifies the app,
+writes the plan and stops with `plan_ready`. Reply in normal mode ("go ahead") and it executes the plan, updating
+step status as it goes. *Guess at the intended behaviour: plan first, human approves, then execute, like Copilot's
+plan mode. Easy to change if you meant something else.*
 
 ## Providers
 
@@ -83,7 +115,10 @@ All `/api/*` routes require `Authorization: Bearer $HARNESS_API_TOKEN` when that
 | GET | `/healthz` | | `{ ok, model, provider, baseUrl }` |
 | POST | `/api/sessions` | | `201 { id }` |
 | GET | `/api/sessions` | | `{ sessions: [{ id, createdAt, lastUsed, busy }] }` |
-| POST | `/api/sessions/{id}/messages` | `{ "prompt": "..." }` | `text/event-stream` (below) |
+| GET | `/api/sessions/{id}` | | `{ id, busy, plan, resolution, files }` |
+| GET | `/api/sessions/{id}/files` | | `{ files: [{ name, bytes }] }` |
+| GET | `/api/sessions/{id}/files/{name}` | | the file, `text/markdown` |
+| POST | `/api/sessions/{id}/messages` | `{ "prompt": "...", "mode": "auto" \| "plan" }` | `text/event-stream` (below) |
 | POST | `/api/sessions/{id}/abort` | | `202` |
 | DELETE | `/api/sessions/{id}` | | `204` |
 
@@ -95,14 +130,22 @@ Set `CORS_ORIGINS` to let a browser app (e.g. the console's Vite dev server) cal
 Each SSE message has `event: <type>` and a JSON `data:` line (field names are camelCase for the JS console):
 
 ```
-turn_start                                   a model call began (several per reply when tools are used)
+run_start   { mode, limits }                 the run began
+turn_start  { step }                         a model call began (one per step)
+thinking    { text }                         streamed reasoning (models that think, e.g. qwen3)
 delta       { text }                         streamed assistant text
 tool_start  { toolCallId, toolName, arguments }
 tool_end    { toolCallId, success, result?, error? }   result truncated to 4000 chars
+plan        { file, goal, steps: [{ title, status, note? }] }   after each update_plan
+workspace   { file }                         a scratch file was written
+continue    { attempt, of }                  agent stopped early; harness nudged it to keep going
+limit       { reason, toolCalls, steps }     max_tool_calls | timeout | max_continues
+resolution  { status, summary, likely_cause?, confidence?, evidence[], next_steps[], owner? }
 usage       { data }                         tokens, latency, finish reason
+compacted                                    older context was summarised
 message     { content }                      complete assistant message
 error       { message }
-done                                         always last
+done        { outcome, toolCalls, steps, continues }   always last; outcome: resolved | error | timeout | max_tool_calls | no_resolution
 ```
 
 If the client disconnects mid-reply, the harness aborts the agent so it stops spending tokens.
@@ -117,11 +160,13 @@ optimus_harness/
   config.py            env -> BYOK provider config
   tools/
     __init__.py        tool registry (OPS_TOOLS)
+    agent.py           per-session tools: update_plan, workspace_*, submit_resolution
     servicenow.py      CMDB, incidents, changes, knowledge (STUBS)
     dynatrace.py       problems, service health, logs (STUBS)
     fixtures.py        invented apps, teams, tickets, problems
 scripts/
-  mock_llm.py          scripted fake OpenAI-compatible LLM for offline tests
+  mock_llm.py          scripted fake LLM that plays an 8-step investigation (thinks, plans, makes a bad
+                       tool call and retries, stops early and gets nudged, submits a resolution)
   smoke.py             end-to-end check against a running harness
 tests/                 tools, config, and the API end to end through the real Copilot runtime (mock LLM)
 ```
@@ -139,7 +184,7 @@ Each tool module says which API to call. In short:
 ## Tests
 
 ```bash
-pytest          # 13 tests, about 5 s
+pytest          # 16 tests, about 7 s
 ```
 
 ## Known limits of v0.1

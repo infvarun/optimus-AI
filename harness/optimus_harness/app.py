@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hmac
 import json
 from contextlib import asynccontextmanager
+from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .config import HarnessConfig, load_config
@@ -19,6 +21,9 @@ from .sessions import HttpError, SessionManager
 
 class MessageBody(BaseModel):
     prompt: str = Field(min_length=1, max_length=16_000)
+    #: "auto": investigate until resolved (plans itself for complex work).
+    #: "plan": write Plan.md and stop for approval; send a follow-up in "auto" to execute it.
+    mode: Literal["auto", "plan"] = "auto"
 
 
 def create_app(cfg: HarnessConfig | None = None) -> FastAPI:
@@ -78,6 +83,19 @@ def create_app(cfg: HarnessConfig | None = None) -> FastAPI:
     async def list_sessions():
         return {"sessions": sessions.list()}
 
+    @app.get("/api/sessions/{sid}", dependencies=api)
+    async def session_state(sid: str):
+        """Current plan, last resolution and workspace files (for reconnecting UIs)."""
+        return sessions.state(sid)
+
+    @app.get("/api/sessions/{sid}/files", dependencies=api)
+    async def list_files(sid: str):
+        return {"files": sessions.files(sid)}
+
+    @app.get("/api/sessions/{sid}/files/{name}", dependencies=api)
+    async def read_file(sid: str, name: str):
+        return PlainTextResponse(sessions.read_file(sid, name), media_type="text/markdown")
+
     @app.delete("/api/sessions/{sid}", dependencies=api)
     async def delete_session(sid: str):
         return Response(status_code=204 if await sessions.delete(sid) else 404)
@@ -94,30 +112,44 @@ def create_app(cfg: HarnessConfig | None = None) -> FastAPI:
         sessions.assert_ready(sid)  # 404 / 409 as JSON, before SSE headers
 
         async def stream():
-            turn = sessions.send_turn(sid, body.prompt)
+            # The agent runs in its own task and feeds a queue, so a quiet period
+            # (a local model thinking for a minute) never cancels it; we just send
+            # SSE heartbeats meanwhile.
+            q: asyncio.Queue[dict | None] = asyncio.Queue()
+
+            async def produce() -> None:
+                try:
+                    async for ev in sessions.send_turn(sid, body.prompt, body.mode):
+                        await q.put(ev)
+                except HttpError as exc:
+                    await q.put({"type": "error", "message": exc.message})
+                    await q.put({"type": "done", "outcome": "error"})
+                except Exception as exc:  # noqa: BLE001
+                    await q.put({"type": "error", "message": str(exc) or type(exc).__name__})
+                    await q.put({"type": "done", "outcome": "error"})
+                finally:
+                    await q.put(None)
+
+            producer = asyncio.create_task(produce())
             try:
                 while True:
                     try:
-                        # Heartbeat every 15s keeps proxies from closing idle streams.
-                        ev = await asyncio.wait_for(anext(turn), timeout=15)
+                        ev = await asyncio.wait_for(q.get(), timeout=15)
                     except asyncio.TimeoutError:
                         if await request.is_disconnected():
                             break
-                        yield ": ping\n\n"
+                        yield ": ping\n\n"  # keeps proxies from closing idle streams
                         continue
-                    except StopAsyncIteration:
+                    if ev is None:
                         break
                     yield f"event: {ev['type']}\ndata: {json.dumps(ev, default=str)}\n\n"
-            except HttpError as exc:
-                yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': exc.message})}\n\n"
-                yield 'event: done\ndata: {"type": "done"}\n\n'
-            except Exception as exc:  # noqa: BLE001
-                yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
-                yield 'event: done\ndata: {"type": "done"}\n\n'
             finally:
-                # Closing the generator aborts the agent if the turn didn't finish
-                # (e.g. the client went away), so we stop spending tokens.
-                await turn.aclose()
+                # If the client went away mid-run, cancelling the producer closes the
+                # agent run, which aborts it so we stop spending tokens.
+                if not producer.done():
+                    producer.cancel()
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
+                        await producer
 
         return StreamingResponse(
             stream(),

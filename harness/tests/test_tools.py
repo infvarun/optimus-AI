@@ -52,3 +52,30 @@ async def test_dynatrace_tools_resolve_through_cmdb():
     logs = await log_search_handler(LogSearchParams(app="csp", min_level="ERROR"))
     assert logs["records"] and all(x["loglevel"] == "ERROR" for x in logs["records"])
     assert "Unknown application" in (await problems_handler(ProblemsParams(app="nope")))["error"]
+
+
+async def test_agent_workspace_tools_stay_inside_the_workspace(tmp_path):
+    import json
+
+    from copilot import ToolInvocation
+
+    from optimus_harness.tools.agent import make_agent_tools
+
+    ws = tmp_path / "ws"
+    tools = {t.name: t for t in make_agent_tools(ws)}
+    assert set(tools) == {"update_plan", "workspace_write", "workspace_read", "workspace_list", "submit_resolution"}
+
+    async def call(tool, **args):
+        r = await tools[tool].handler(ToolInvocation(tool_name=tool, arguments=args))
+        return json.loads(r.text_result_for_llm)
+
+    assert (await call("update_plan", goal="g", steps=[{"title": "a", "status": "done"}, {"title": "b"}]))["ok"]
+    assert "1. [x] a" in (ws / "Plan.md").read_text() and "2. [ ] b" in (ws / "Plan.md").read_text()
+    assert (await call("workspace_write", name="context.md", content="x"))["ok"]
+    assert (await call("workspace_write", name="context.md", content="y", append=True))["bytes"] == 2
+    assert (await call("workspace_read", name="context.md"))["content"] == "xy"
+    for bad in ["../escape.md", "/etc/passwd", "sub/dir.md", "notes.txt"]:
+        assert not (await call("workspace_write", name=bad, content="x"))["ok"], bad
+    assert not (await call("workspace_write", name="Plan.md", content="x"))["ok"]
+    assert [f["name"] for f in (await call("workspace_list"))["files"]] == ["Plan.md", "context.md"]
+    assert not list(tmp_path.glob("escape.md"))

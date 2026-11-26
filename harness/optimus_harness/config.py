@@ -36,6 +36,14 @@ class HarnessConfig:
     cors_origins: list[str] = field(default_factory=list)
     #: Where the Copilot runtime keeps session state for this harness.
     data_dir: Path = Path(".optimus-data")
+    #: Model context window. Tells the runtime when to compact long investigations.
+    #: Must match what the model server actually uses (e.g. OLLAMA_CONTEXT_LENGTH).
+    context_tokens: int | None = None
+    max_output_tokens: int = 4096
+    #: Agent loop guards, per user message.
+    max_tool_calls: int = 30
+    max_continues: int = 2
+    turn_timeout_seconds: int = 900
 
 
 def _required(env: Mapping[str, str], name: str) -> str:
@@ -86,4 +94,21 @@ def load_config(env: Mapping[str, str] | None = None) -> HarnessConfig:
         session_idle_minutes=int(env.get("SESSION_IDLE_MINUTES") or 30),
         cors_origins=cors,
         data_dir=Path(env.get("HARNESS_DATA_DIR") or ".optimus-data").resolve(),
+        # Ollama's context is whatever the server was started with; assume the
+        # 16k the README asks for unless told otherwise.
+        context_tokens=_int(env, "LLM_CONTEXT_TOKENS", 16384 if ptype == "ollama" else None),
+        max_output_tokens=_int(env, "LLM_MAX_OUTPUT_TOKENS", 4096),
+        max_tool_calls=_int(env, "AGENT_MAX_TOOL_CALLS", 30),
+        max_continues=_int(env, "AGENT_MAX_CONTINUES", 2),
+        turn_timeout_seconds=_int(env, "AGENT_TURN_TIMEOUT_SECONDS", 900),
     )
+
+
+def _int(env: Mapping[str, str], name: str, default: int | None) -> int | None:
+    raw = (env.get(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        raise ConfigError(f"{name} must be an integer (got {raw!r}).") from None
