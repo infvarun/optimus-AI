@@ -6,21 +6,71 @@ the real APIs (ServiceNow Table API, Dynatrace Environment API v2) so swapping
 in real clients is mostly mapping. Delete this module once the tools call real
 backends.
 
-Timestamps are relative to import time, so "25 minutes ago" stays true-ish
-while the process runs.
+Timestamps are written relative to import time (T0). Handlers filter against
+``fixture_now()`` (T0) and pass results through ``present()``, which shifts every
+timestamp to the real clock and adds a human-readable ``<field>Relative`` next to
+it ("15 min ago", "in 2 h"). So "25 minutes ago" stays true however long the
+process runs, and small models don't have to do ISO date arithmetic (they get it
+wrong).
 """
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
 
 
+T0 = datetime.now(timezone.utc)
+
+
 def _ago(minutes: float) -> str:
-    return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
+    return (T0 - timedelta(minutes=minutes)).isoformat()
 
 
 def _ahead(minutes: float) -> str:
-    return (datetime.now(timezone.utc) + timedelta(minutes=minutes)).isoformat()
+    return (T0 + timedelta(minutes=minutes)).isoformat()
+
+
+def fixture_now() -> datetime:
+    """'Now' in fixture time. Filter fixture data against this, not the real clock."""
+    return T0
+
+
+def _relative(delta_minutes: float) -> str:
+    m = abs(delta_minutes)
+    if m < 1:
+        return "just now"
+    if m < 90:
+        text = f"{round(m)} min"
+    elif m < 60 * 36:
+        h, rem = divmod(round(m), 60)
+        text = f"{h} h {rem} min" if rem and h < 6 else f"{round(m / 60)} h"
+    else:
+        text = f"{round(m / 1440)} days"
+    return f"{text} ago" if delta_minutes <= 0 else f"in {text}"
+
+
+_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
+
+
+def present(obj, now: datetime | None = None):
+    """Copy a tool result, moving fixture timestamps onto the real clock and adding
+    '<key>Relative' fields so the model can read times without arithmetic."""
+    now = now or datetime.now(timezone.utc)
+    shift = now - T0
+    if isinstance(obj, list):
+        return [present(x, now) for x in obj]
+    if not isinstance(obj, dict):
+        return obj
+    out: dict = {}
+    for k, v in obj.items():
+        if isinstance(v, str) and _ISO.match(v):
+            ts = datetime.fromisoformat(v) + shift
+            out[k] = ts.isoformat(timespec="seconds")
+            out[f"{k}Relative"] = _relative((ts - now).total_seconds() / 60)
+        else:
+            out[k] = present(v, now)
+    return out
 
 
 def _person(name: str, user_id: str) -> dict:

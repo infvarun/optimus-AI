@@ -1,8 +1,8 @@
 """Smoke test against a RUNNING harness (python -m optimus_harness).
 
 Creates a session, sends one question, prints the stream, and exits:
-  0  the agent called tools and finished with submit_resolution
-  2  it finished without calling any ops tool, or never submitted a resolution
+  0  the agent called tools and finished (a resolution, or a plain-text answer)
+  2  it finished without calling any ops tool, or without any answer
   1  error or no answer
 
   python scripts/smoke.py
@@ -81,6 +81,8 @@ def main() -> int:
                         print(f"\n[error] {error}", file=sys.stderr)
                     case "done":
                         outcome = e.get("outcome", "")
+                        if outcome == "answered":
+                            print("\n\n=== ANSWERED (plain text above) ===")
         c.delete(f"/api/sessions/{sid}")
 
     if resolution:
@@ -95,7 +97,7 @@ def main() -> int:
     print(f"\n--- outcome: {outcome}, ops tools called: {tools}" + (f", error: {error}" if error else ""))
     if error or outcome in ("error", "timeout", "max_tool_calls"):
         return 1
-    if not resolution or (tools == 0 and MODE == "auto"):
+    if (not resolution and outcome != "answered") or (tools == 0 and MODE == "auto"):
         return 2
     return 0
 

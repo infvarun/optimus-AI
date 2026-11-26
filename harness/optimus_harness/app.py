@@ -7,7 +7,7 @@ import contextlib
 import hmac
 import json
 from contextlib import asynccontextmanager
-from typing import Literal
+from typing import Annotated, Literal, Optional
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -24,6 +24,9 @@ class MessageBody(BaseModel):
     #: "auto": investigate until resolved (plans itself for complex work).
     #: "plan": write Plan.md and stop for approval; send a follow-up in "auto" to execute it.
     mode: Literal["auto", "plan"] = "auto"
+    #: What the user is looking at, e.g. {"app": "Clinical Supply Portal", "incident": "INC0104521"}.
+    #: Lets "this app" resolve without the agent asking back.
+    context: Optional[dict[str, Annotated[str, Field(max_length=200)]]] = Field(default=None, max_length=8)
 
 
 def create_app(cfg: HarnessConfig | None = None) -> FastAPI:
@@ -119,7 +122,7 @@ def create_app(cfg: HarnessConfig | None = None) -> FastAPI:
 
             async def produce() -> None:
                 try:
-                    async for ev in sessions.send_turn(sid, body.prompt, body.mode):
+                    async for ev in sessions.send_turn(sid, body.prompt, body.mode, body.context):
                         await q.put(ev)
                 except HttpError as exc:
                     await q.put({"type": "error", "message": exc.message})

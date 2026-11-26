@@ -79,3 +79,16 @@ async def test_agent_workspace_tools_stay_inside_the_workspace(tmp_path):
     assert not (await call("workspace_write", name="Plan.md", content="x"))["ok"]
     assert [f["name"] for f in (await call("workspace_list"))["files"]] == ["Plan.md", "context.md"]
     assert not list(tmp_path.glob("escape.md"))
+
+
+async def test_times_are_fresh_and_readable():
+    """Tool results carry the real clock plus a '<field>Relative' a small model can quote."""
+    from datetime import timedelta
+
+    from optimus_harness.tools.fixtures import T0, present
+
+    out = present({"changes": [{"plannedEnd": (T0 - timedelta(minutes=15)).isoformat()}]}, now=T0 + timedelta(hours=2))
+    ch = out["changes"][0]
+    assert ch["plannedEndRelative"] == "15 min ago"  # still 15 minutes ago two hours later
+    assert ch["plannedEnd"].startswith((T0 + timedelta(hours=2) - timedelta(minutes=15)).isoformat()[:16])
+    assert present({"at": (T0 + timedelta(minutes=125)).isoformat()}, now=T0)["atRelative"] == "in 2 h 5 min"

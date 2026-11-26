@@ -70,7 +70,7 @@ class SubmitResolutionParams(BaseModel):
 
 
 def render_plan(p: UpdatePlanParams) -> str:
-    lines = [f"# Plan", "", f"**Goal:** {p.goal}", "", f"_Updated {datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}_", ""]
+    lines = ["# Plan", "", f"**Goal:** {p.goal}", "", f"_Updated {datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}_", ""]
     for i, s in enumerate(p.steps, 1):
         lines.append(f"{i}. {_STATUS_MARK[s.status]} {s.title}" + (f" — {s.note}" if s.note else ""))
     return "\n".join(lines) + "\n"

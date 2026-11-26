@@ -43,6 +43,16 @@ python scripts/smoke.py "Is LabTrack LIMS healthy? Any changes coming up?"
 
 Interactive API docs: http://127.0.0.1:8787/docs
 
+**How reliable is it on your model?** With the harness running:
+
+```bash
+python scripts/eval.py --repeat 3 --out eval.json
+```
+
+It runs six fixed questions (an investigation, "what changed", "this app" with console context, a status update
+draft, a health check and a plan-mode request), checks each answer for the right ticket ids, normal finish and no
+repetition, and prints a pass rate per question.
+
 `scripts/smoke.py` prints each step, the thinking (dimmed), tool calls, plan updates and the final resolution. It exits
 0 if the agent used tools and submitted a resolution, 2 if it never did, and 1 on error or a limit.
 
@@ -73,9 +83,15 @@ Each user message starts a **run**:
 1. **Inner loop (Copilot runtime):** model → tool calls → results → model → … until the model stops calling tools.
    Tool argument mistakes come back to the model as readable errors (e.g. *missing required argument: app*), so it
    fixes the call and retries.
-2. **Outer loop (harness):** the run is only finished when the agent calls `submit_resolution`
-   (status `resolved`, `needs_human`, `needs_info`, `answered` or `plan_ready`). If the model stops early with plain
-   text, which small local models often do, the harness nudges it to continue, up to `AGENT_MAX_CONTINUES` times.
+2. **Outer loop (harness):** decides whether the run is finished.
+   - An investigation ends when the agent calls `submit_resolution` (status `resolved`, `needs_human`,
+     `needs_info`, `answered` or `plan_ready`): outcome `resolved`.
+   - A question or a draft ("what changed?", "write a status update") ends with a plain-text answer:
+     outcome `answered`. That is a normal finish, not a failure.
+   - If the agent stops with no text, or stops partway through its own plan with a statement instead of an
+     answer, the harness nudges it once to continue (`continue` event, internal; don't show it to users).
+     Text written after a nudge is held back and dropped if it only repeats the earlier answer.
+   - Plan mode: if the agent wrote the plan but forgot `submit_resolution`, the harness completes it as `plan_ready`.
 3. **Working memory:** for multi-step work the agent writes `Plan.md` with `update_plan` and keeps findings in
    `context.md` with `workspace_write`, reading them back later. Files live in
    `<HARNESS_DATA_DIR>/workspaces/<session id>/`; the tools can't write anywhere else (plain `*.md` names only,
@@ -118,7 +134,7 @@ All `/api/*` routes require `Authorization: Bearer $HARNESS_API_TOKEN` when that
 | GET | `/api/sessions/{id}` | | `{ id, busy, plan, resolution, files }` |
 | GET | `/api/sessions/{id}/files` | | `{ files: [{ name, bytes }] }` |
 | GET | `/api/sessions/{id}/files/{name}` | | the file, `text/markdown` |
-| POST | `/api/sessions/{id}/messages` | `{ "prompt": "...", "mode": "auto" \| "plan" }` | `text/event-stream` (below) |
+| POST | `/api/sessions/{id}/messages` | `{ "prompt": "...", "mode": "auto" \| "plan", "context"?: { "app": "...", "incident": "..." } }` | `text/event-stream` (below) |
 | POST | `/api/sessions/{id}/abort` | | `202` |
 | DELETE | `/api/sessions/{id}` | | `204` |
 
@@ -138,14 +154,15 @@ tool_start  { toolCallId, toolName, arguments }
 tool_end    { toolCallId, success, result?, error? }   result truncated to 4000 chars
 plan        { file, goal, steps: [{ title, status, note? }] }   after each update_plan
 workspace   { file }                         a scratch file was written
-continue    { attempt, of }                  agent stopped early; harness nudged it to keep going
-limit       { reason, toolCalls, steps }     max_tool_calls | timeout | max_continues
+continue    { attempt, of }                  internal: agent stopped mid-plan and was nudged (don't show users)
+limit       { reason, toolCalls, steps }     max_tool_calls | timeout | max_continues (nudged, still no answer)
 resolution  { status, summary, likely_cause?, confidence?, evidence[], next_steps[], owner? }
 usage       { data }                         tokens, latency, finish reason
 compacted                                    older context was summarised
 message     { content }                      complete assistant message
 error       { message }
-done        { outcome, toolCalls, steps, continues }   always last; outcome: resolved | error | timeout | max_tool_calls | no_resolution
+done        { outcome, toolCalls, steps, continues, answer? }   always last
+            outcome: resolved | answered (answer = the final plain-text reply) | no_answer | error | timeout | max_tool_calls
 ```
 
 If the client disconnects mid-reply, the harness aborts the agent so it stops spending tokens.
@@ -163,11 +180,12 @@ optimus_harness/
     agent.py           per-session tools: update_plan, workspace_*, submit_resolution
     servicenow.py      CMDB, incidents, changes, knowledge (STUBS)
     dynatrace.py       problems, service health, logs (STUBS)
-    fixtures.py        invented apps, teams, tickets, problems
+    fixtures.py        invented apps, teams, tickets, problems; times stay fresh and get "15 min ago" fields
 scripts/
   mock_llm.py          scripted fake LLM that plays an 8-step investigation (thinks, plans, makes a bad
                        tool call and retries, stops early and gets nudged, submits a resolution)
   smoke.py             end-to-end check against a running harness
+  eval.py              reliability check: fixed questions x N runs, pass rate per question
 tests/                 tools, config, and the API end to end through the real Copilot runtime (mock LLM)
 ```
 
@@ -184,7 +202,7 @@ Each tool module says which API to call. In short:
 ## Tests
 
 ```bash
-pytest          # 16 tests, about 7 s
+pytest          # 20 tests, about 8 s
 ```
 
 ## Known limits of v0.1

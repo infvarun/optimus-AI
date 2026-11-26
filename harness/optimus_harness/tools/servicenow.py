@@ -10,13 +10,13 @@ through a human-approved action, not these tools.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Optional
 
 from copilot import define_tool
 from pydantic import BaseModel, Field
 
-from .fixtures import APPS, CHANGES, INCIDENTS, KB_ARTICLES, find_app, known_apps, parse_ts
+from .fixtures import APPS, CHANGES, INCIDENTS, KB_ARTICLES, find_app, fixture_now, known_apps, parse_ts, present
 
 APP_DESC = "Application name or alias as the user said it, e.g. 'Clinical Supply Portal' or 'csp'"
 ACTIVE_STATES = {"New", "In Progress", "On Hold"}
@@ -73,7 +73,7 @@ async def incident_search_handler(params: IncidentSearchParams) -> dict:
     ]
     hits.sort(key=lambda i: i["openedAt"], reverse=True)
     hits = hits[: params.limit]
-    return {"stub": True, "app": ci["name"], "count": len(hits), "incidents": hits}
+    return present({"stub": True, "app": ci["name"], "count": len(hits), "incidents": hits})
 
 
 incident_search = define_tool(
@@ -98,14 +98,14 @@ async def change_search_handler(params: ChangeSearchParams) -> dict:
     ci = find_app(params.app)
     if not ci:
         return {"stub": True, "error": f"Unknown application {params.app!r}. Known: {known_apps()}"}
-    now = datetime.now(timezone.utc)
+    now = fixture_now()
     start, end = now - timedelta(hours=params.hours_back), now + timedelta(hours=params.hours_ahead)
     hits = [
         c
         for c in CHANGES
         if c["cmdbCi"] == ci["name"] and parse_ts(c["plannedEnd"]) >= start and parse_ts(c["plannedStart"]) <= end
     ]
-    return {"stub": True, "app": ci["name"], "now": now.isoformat(), "changes": hits}
+    return present({"stub": True, "app": ci["name"], "now": now.isoformat(), "changes": hits})
 
 
 change_search = define_tool(

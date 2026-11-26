@@ -4,10 +4,16 @@ One user message becomes one *run*. Inside a run:
 
 1. The Copilot runtime does the inner loop: model -> tool calls -> results -> model ...
    until the model stops calling tools (or calls the terminal ``submit_resolution``).
-2. The harness does the outer loop: if the model stopped without calling
-   ``submit_resolution``, it is nudged to keep investigating or finish, up to
-   ``max_continues`` times. Small local models often stop early; this is what
-   makes them keep trying.
+2. The harness decides whether the run is finished:
+   - ``submit_resolution`` was called: finished (outcome ``resolved``).
+   - The model replied in plain text (an answer, a draft, or a question back to the
+     user): finished (outcome ``answered``). That is a normal end, not a failure.
+   - The model stopped with no text, or stopped partway through its own plan with
+     a statement rather than an answer: nudge it once to continue or finish
+     (``continue`` event, internal). Text it writes after a nudge is held back and
+     dropped if it only repeats what it already said.
+   - Plan mode: if the plan was written but ``submit_resolution`` wasn't called, the
+     harness completes it as ``plan_ready`` itself.
 3. Guards: at most ``max_tool_calls`` tool calls and ``turn_timeout_seconds``
    wall-clock per run; on breach the run is aborted and a ``limit`` event sent.
 
@@ -18,6 +24,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import difflib
+import re
 import shutil
 import time
 import uuid
@@ -59,22 +67,37 @@ OPS_INSTRUCTIONS = """
 Context: applications are custom-built, SaaS or COTS. Each is owned by a support team with leads and members.
 Observability is Dynatrace. ITSM (incidents, changes, requests, CMDB, knowledge) is ServiceNow.
 
-How you work (think, act, observe, repeat):
-1. For anything beyond a one-line question, call update_plan FIRST with the goal and 3-8 steps. Update it as
-   steps start and finish. Keep key facts and ids in context.md with workspace_write so you don't lose them.
+Decide what kind of request it is:
+A. A question or a draft (what changed, is X healthy, who owns X, write a status update): look up the facts
+   with the tools, then answer in plain text. Do not call update_plan or submit_resolution.
+B. An investigation (errors, slowness, outage, "what's going on and what should we do"): work through it,
+   then finish by calling submit_resolution once.
+
+How to investigate (think, act, observe, repeat):
+1. Call update_plan first with the goal and 3-6 steps. Mark steps done as you go.
+   Keep key facts and ids in context.md with workspace_write.
 2. Identify the application with servicenow_cmdb_lookup (type, owning team, on-call, Dynatrace entity).
 3. Gather evidence: dynatrace_problems and dynatrace_service_health, then dynatrace_log_search to confirm.
    servicenow_change_search for recent changes, servicenow_incident_search for existing or similar incidents.
 4. Form a hypothesis and test it with another tool call. If a result contradicts it, revise and keep going.
 5. Before recommending remediation, use servicenow_kb_search and follow the approved article.
-6. If a tool returns an error, read it, fix the arguments and try again. Don't give up after one failure.
-7. Finish EVERY request by calling submit_resolution exactly once, with evidence ids (P-..., INC..., CHG..., KB...).
+6. If a tool returns an error, read it, fix the arguments and try again.
+7. Call submit_resolution with status, summary, likely_cause, confidence (low, medium or high),
+   evidence ids (P-..., INC..., CHG..., KB...), next_steps and owner.
+
+Writing the answer:
+- Answer once. Never repeat something you already said in this conversation.
+- Be crisp: short Markdown with bold labels, bullets, and a table when listing several items.
+- Use ticket ids exactly as the tools return them.
+- For times, use the *Relative fields the tools return (e.g. "15 min ago"). Don't work times out from timestamps.
+- Don't end with offers like "Would you like me to...". Ask a question only if you cannot continue without
+  the answer, e.g. which application the user means.
 
 Rules:
 - You only have read-only tools. Never claim to have restarted, rolled back, or changed anything. If a change is
   needed, say what a human should do, which change type it needs, and who approves (the owning team's lead).
 - For SaaS and COTS apps, say when the fix is the vendor's and the step is to raise a vendor case.
-- If a tool result contains "stub": true, say the data is sample data.
+- If a tool result contains "stub": true, mention once that the data is sample data.
 """.strip()
 
 PLAN_MODE_PREFIX = (
@@ -85,9 +108,9 @@ PLAN_MODE_PREFIX = (
 )
 
 NUDGE = (
-    "You stopped without calling submit_resolution. If the investigation is not finished, continue: check your "
-    "plan (workspace_read Plan.md), run the next step, and test your hypothesis with the tools. If you have enough "
-    "evidence, call submit_resolution now."
+    "You stopped partway through your plan. Continue with the next step using the tools. If you already have "
+    "what you need, finish now: call submit_resolution for an investigation, or give your final answer. "
+    "Do not repeat anything you already said."
 )
 
 MAX_TOOL_RESULT_CHARS = 4000
@@ -144,6 +167,36 @@ def map_event(ev: SessionEvent) -> dict | None:
         case SessionErrorData():
             return {"type": "error", "message": d.message}
     return None
+
+
+def _with_context(prompt: str, context: dict | None) -> str:
+    if not context:
+        return prompt
+    parts = [f"{k}: {v}" for k, v in context.items() if v]
+    return f"[The user is looking at {'; '.join(parts)}]\n{prompt}" if parts else prompt
+
+
+def _norm(text: str) -> str:
+    return re.sub(r"[^a-z0-9 ]+", "", re.sub(r"\s+", " ", text.lower())).strip()
+
+
+def _is_repeat(new: str, old: str) -> bool:
+    """True when a post-nudge reply adds nothing: empty, or mostly the same words as before."""
+    a, b = _norm(new), _norm(old)
+    if not a:
+        return True
+    if not b:
+        return False
+    return a in b or difflib.SequenceMatcher(None, a, b, autojunk=False).ratio() > 0.6
+
+
+def _mid_plan(plan: dict | None, answer: str) -> bool:
+    """The model wrote a plan this run, left steps open, and stopped with a statement rather than a
+    question. That is the 'stopped early' pattern worth one nudge. A question back to the user is not."""
+    if not plan or answer.rstrip().endswith("?"):
+        return False
+    steps = plan.get("steps") or []
+    return any((st or {}).get("status", "pending") in ("pending", "in_progress") for st in steps)
 
 
 @dataclass
@@ -253,9 +306,13 @@ class SessionManager:
         if self._get(sid).busy:
             raise HttpError(409, "Session is already processing a message")
 
-    async def send_turn(self, sid: str, prompt: str, mode: Mode = "auto") -> AsyncIterator[dict]:
+    async def send_turn(
+        self, sid: str, prompt: str, mode: Mode = "auto", context: dict | None = None
+    ) -> AsyncIterator[dict]:
         """Run the agent on one user message; yield harness events until it finishes.
 
+        ``context`` is what the user is looking at in the console (e.g. ``{"app": ..., "incident": ...}``),
+        so "this app" in a prompt resolves without a question back.
         If the consumer stops iterating early (client disconnected), the run is aborted.
         """
         entry = self._get(sid)
@@ -289,15 +346,22 @@ class SessionManager:
         continues = 0
         running = False
         outcome = "incomplete"
+        answer = ""  # the model's last plain-text reply in this run
+        plan_this_run = False
         try:
             yield {"type": "run_start", "mode": mode, "limits": {
                 "maxToolCalls": cfg.max_tool_calls, "maxContinues": cfg.max_continues,
                 "timeoutSeconds": cfg.turn_timeout_seconds}}
-            message = (PLAN_MODE_PREFIX + prompt) if mode == "plan" else prompt
+            message = _with_context(prompt, context)
+            if mode == "plan":
+                message = PLAN_MODE_PREFIX + message
             while True:
                 await entry.session.send(message)
                 running = True
                 errored = False
+                # After a nudge, hold text back until we know it isn't a repeat.
+                held: list[dict] | None = [] if continues else None
+                text_after_tools = ""
                 while True:
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
@@ -317,14 +381,25 @@ class SessionManager:
                         item["step"] = steps
                     elif kind == "tool_start":
                         tool_calls += 1
+                        text_after_tools = ""
                         pending_args[item["toolCallId"]] = (item["toolName"], item["arguments"])
+                        if held:
+                            for h in held:
+                                yield h
+                        held = None
                     elif kind == "error":
                         errored = True
+                    elif kind == "message":
+                        text_after_tools = item["content"]
+                    if held is not None and kind in ("delta", "message"):
+                        held.append(item)
+                        continue
                     yield item
                     if kind == "tool_end" and item["success"]:
                         name, args = pending_args.pop(item["toolCallId"], ("", None))
                         if name == "update_plan" and isinstance(args, dict):
                             entry.plan = args
+                            plan_this_run = True
                             yield {"type": "plan", "file": PLAN_FILE, **args}
                         elif name == "workspace_write" and isinstance(args, dict):
                             yield {"type": "workspace", "file": args.get("name")}
@@ -335,6 +410,16 @@ class SessionManager:
                         outcome = "max_tool_calls"
                         break
 
+                # Release held post-nudge text unless it only repeats the earlier answer.
+                if held:
+                    if _is_repeat(text_after_tools, answer):
+                        text_after_tools = ""
+                    else:
+                        for h in held:
+                            yield h
+                if text_after_tools.strip():
+                    answer = text_after_tools
+
                 if outcome in ("timeout", "max_tool_calls"):
                     yield {"type": "limit", "reason": outcome, "toolCalls": tool_calls, "steps": steps}
                     break
@@ -344,14 +429,27 @@ class SessionManager:
                 if entry.resolution is not None:
                     outcome = "resolved"
                     break
+                if mode == "plan" and plan_this_run:
+                    # The plan exists; small models often forget the final call. Complete it for them.
+                    entry.resolution = {"status": "plan_ready",
+                                        "summary": answer or f"Plan written to {PLAN_FILE}.",
+                                        "evidence": [], "next_steps": []}
+                    yield {"type": "resolution", **entry.resolution}
+                    outcome = "resolved"
+                    break
+                if answer and not (continues == 0 and _mid_plan(entry.plan if plan_this_run else None, answer)):
+                    outcome = "answered"
+                    break
                 if continues >= cfg.max_continues:
-                    outcome = "no_resolution"
-                    yield {"type": "limit", "reason": "max_continues", "toolCalls": tool_calls, "steps": steps}
+                    outcome = "answered" if answer else "no_answer"
+                    if not answer:
+                        yield {"type": "limit", "reason": "max_continues", "toolCalls": tool_calls, "steps": steps}
                     break
                 continues += 1
                 yield {"type": "continue", "attempt": continues, "of": cfg.max_continues}
                 message = NUDGE
-            yield {"type": "done", "outcome": outcome, "toolCalls": tool_calls, "steps": steps, "continues": continues}
+            yield {"type": "done", "outcome": outcome, "toolCalls": tool_calls, "steps": steps,
+                   "continues": continues, **({"answer": answer} if outcome == "answered" else {})}
         finally:
             unsubscribe()
             if running:

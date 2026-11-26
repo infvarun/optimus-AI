@@ -11,13 +11,13 @@ pass arbitrary entity selectors straight through.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Literal, Optional
 
 from copilot import define_tool
 from pydantic import BaseModel, Field
 
-from .fixtures import DT_LOGS, DT_METRICS, DT_PROBLEMS, find_app, known_apps, parse_ts
+from .fixtures import DT_LOGS, DT_METRICS, DT_PROBLEMS, find_app, fixture_now, known_apps, parse_ts, present
 
 APP_DESC = "Application name or alias, e.g. 'Clinical Supply Portal' or 'csp'"
 LEVELS = ["DEBUG", "INFO", "WARN", "ERROR"]
@@ -44,7 +44,7 @@ async def problems_handler(params: ProblemsParams) -> dict:
     if isinstance(r, str):
         return {"stub": True, "error": r}
     ci, entity = r
-    since = datetime.now(timezone.utc) - timedelta(hours=params.hours_back)
+    since = fixture_now() - timedelta(hours=params.hours_back)
     hits = [
         p
         for p in DT_PROBLEMS
@@ -52,7 +52,7 @@ async def problems_handler(params: ProblemsParams) -> dict:
         and (params.status == "ALL" or p["status"] == params.status)
         and parse_ts(p["startTime"]) >= since
     ]
-    return {"stub": True, "app": ci["name"], "entityId": entity, "totalCount": len(hits), "problems": hits}
+    return present({"stub": True, "app": ci["name"], "entityId": entity, "totalCount": len(hits), "problems": hits})
 
 
 problems = define_tool(
@@ -79,7 +79,7 @@ async def service_health_handler(params: ServiceHealthParams) -> dict:
     m = DT_METRICS.get(entity)
     if not m:
         return {"stub": True, "error": f"No metrics for {entity}"}
-    return {"stub": True, "app": ci["name"], "measuredAt": datetime.now(timezone.utc).isoformat(), **m}
+    return present({"stub": True, "app": ci["name"], "measuredAt": fixture_now().isoformat(), **m})
 
 
 service_health = define_tool(
@@ -107,7 +107,7 @@ async def log_search_handler(params: LogSearchParams) -> dict:
     if isinstance(r, str):
         return {"stub": True, "error": r}
     ci, entity = r
-    since = datetime.now(timezone.utc) - timedelta(minutes=params.minutes_back)
+    since = fixture_now() - timedelta(minutes=params.minutes_back)
     q = (params.query or "").lower()
     floor = LEVELS.index(params.min_level)
     hits = [
@@ -120,7 +120,7 @@ async def log_search_handler(params: LogSearchParams) -> dict:
     ]
     hits.sort(key=lambda log: log["timestamp"], reverse=True)
     hits = hits[: params.limit]
-    return {"stub": True, "app": ci["name"], "count": len(hits), "records": hits}
+    return present({"stub": True, "app": ci["name"], "count": len(hits), "records": hits})
 
 
 log_search = define_tool(

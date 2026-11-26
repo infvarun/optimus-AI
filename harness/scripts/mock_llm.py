@@ -14,6 +14,11 @@ local models do:
   step 8  after the nudge, finishes                (submit_resolution)
 
 In plan mode ("[PLAN MODE]" in the request) it writes a plan and submits status plan_ready.
+
+Other scripts, picked by words in the user messages (for tests):
+  "status update"  looks up changes, then answers in plain text (no resolution; a normal "answered" finish)
+  "REPEAT"         writes a plan, stops early with text, and after the nudge repeats the same text
+  "NOSUBMIT"       (plan mode) writes the plan but never calls submit_resolution
 Thinking is streamed in the `reasoning` delta field, the way Ollama sends it.
 
 Run:  python scripts/mock_llm.py
@@ -61,9 +66,25 @@ def script(req: dict) -> tuple[str, list[tuple[str, dict]] | str]:
     msgs = req.get("messages", [])
     users = [m for m in msgs if m.get("role") == "user"]
     plan_mode = any("[PLAN MODE]" in str(m.get("content")) for m in users)
-    nudged = any("without calling submit_resolution" in str(m.get("content")) for m in users)
+    nudged = any("You stopped partway" in str(m.get("content")) for m in users)
     n = sum(1 for m in msgs if m.get("role") == "assistant" and m.get("tool_calls"))
     last_tool = next((str(m.get("content")) for m in reversed(msgs) if m.get("role") == "tool"), "")
+
+    first = " ".join(str(m.get("content")) for m in users)  # the runtime may add its own user messages
+
+    if "NOSUBMIT" in first:
+        if n == 0:
+            return "Plan mode: write the plan.", [("update_plan", PLAN)]
+        return "Done.", "The plan is ready for your review."
+    if "status update" in first:
+        if n == 0:
+            return "I need the recent changes first.", [("servicenow_change_search", {"app": "csp"})]
+        seen = "context" if "[The user is looking at" in first else "no context"
+        return "Now write it.", f"**Status:** Clinical Supply Portal errors after release 2.14.0 ({seen})."
+    if "REPEAT" in first:
+        if n == 0:
+            return "Plan first.", [("update_plan", PLAN)]
+        return "Answering.", "Pool exhaustion after release 2.14.0 is the likely cause."
 
     if plan_mode:
         if n == 0:
