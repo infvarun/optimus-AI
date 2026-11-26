@@ -1,0 +1,165 @@
+/*
+ * Design tokens: Miro design-md structure, with Pfizer blue replacing black
+ * as {colors.primary}. Hex values marked GUESS were not available from the
+ * source page in this environment and should be checked against brand specs.
+ */
+:root {
+  /* Primary: Pfizer blue replaces Miro's black pill CTA */
+  --primary: #0000c9;            /* GUESS: Pfizer Blue from the 2021 brand */
+  --primary-pressed: #00009e;
+  --primary-deep: #000066;       /* footer / dark banners, replaces footer-bg */
+  --on-primary: #ffffff;
+  --primary-tint: #eef0ff;       /* replaces surface-pricing-featured lavender */
+  --primary-tint-strong: #dde1ff;
+  --link: #0000c9;               /* brand-blue collapsed into Pfizer blue */
+
+  /* Brand accents (sticky-note palette) */
+  --brand-yellow: #ffd02f;       /* wordmark + yellow tags only */
+  --surface-yellow: #fff6cc;
+  --yellow-dark: #5c4a00;
+  --coral-light: #ffe2d9;
+  --coral-dark: #7a1f0e;
+  --teal-light: #d6f2ee;
+  --moss-dark: #0b4d44;
+  --rose-light: #fde4ee;
+  --rose-dark: #7a1340;
+
+  /* Surface */
+  --canvas: #ffffff;
+  --surface: #f6f6f9;
+  --surface-soft: #fafafc;
+  --hairline: #e4e4ec;
+  --hairline-soft: #eeeef3;
+  --hairline-strong: #c9cad6;
+
+  /* Text (ink keeps Miro's navy, which sits well beside Pfizer blue) */
+  --ink-deep: #02001f;
+  --ink: #050038;
+  --charcoal: #2b2a45;
+  --slate: #50536a;
+  --steel: #62667c;
+  --stone: #7c7f93;
+  --muted: #9a9cad;
+  --on-dark: #ffffff;
+  --on-dark-muted: rgba(255, 255, 255, 0.72);
+
+  /* Semantic */
+  --success: #0a7d52;
+  --success-bg: #dcf5ea;
+  --warning: #8a5a00;
+  --warning-bg: #fff3d1;
+  --danger: #b4231c;
+  --danger-bg: #ffe5e2;
+
+  /* Elevation (Miro uses ink-tinted shadows) */
+  --shadow-1: 0 1px 2px rgba(5, 0, 56, 0.04);
+  --shadow-2: 0 4px 12px rgba(5, 0, 56, 0.06);
+  --shadow-4: 0 16px 48px -8px rgba(5, 0, 56, 0.16);
+
+  /* Radius */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-xxl: 20px;
+  --r-feature: 28px;
+  --r-full: 9999px;
+
+  /* Spacing (4px base) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+
+  /* Type: Roobert PRO is licensed; Figtree is the closest free geometric stand-in (GUESS) */
+  --font-sans: 'Roobert PRO', 'Figtree Variable', 'Noto Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur: 160ms;
+
+  color-scheme: light;
+}
+
+/* Dark theme: Miro publishes none, so this is derived (GUESS). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --primary: #4d5cff;
+    --primary-pressed: #3a48f0;
+    --primary-deep: #0a0a3d;
+    --primary-tint: #1b1d4d;
+    --primary-tint-strong: #252870;
+    --link: #9aa4ff;
+    --surface-yellow: #3a3210;
+    --yellow-dark: #ffe58a;
+    --coral-light: #3d1f18;
+    --coral-dark: #ffb9a5;
+    --teal-light: #0f3631;
+    --moss-dark: #9ee6da;
+    --rose-light: #3b1627;
+    --rose-dark: #ffb3d1;
+    --canvas: #0e0e1c;
+    --surface: #15152a;
+    --surface-soft: #121224;
+    --hairline: #26263f;
+    --hairline-soft: #1e1e35;
+    --hairline-strong: #3a3a58;
+    --ink-deep: #ffffff;
+    --ink: #eeeefa;
+    --charcoal: #d6d6e8;
+    --slate: #b0b2c8;
+    --steel: #9a9cb4;
+    --stone: #85879e;
+    --muted: #6a6c84;
+    --success: #4fd69c;
+    --success-bg: #0f3326;
+    --warning: #ffcc66;
+    --warning-bg: #3a2c0a;
+    --danger: #ff8a80;
+    --danger-bg: #3d1513;
+    --shadow-4: 0 16px 48px -8px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --primary: #4d5cff;
+  --primary-pressed: #3a48f0;
+  --primary-deep: #0a0a3d;
+  --primary-tint: #1b1d4d;
+  --primary-tint-strong: #252870;
+  --link: #9aa4ff;
+  --surface-yellow: #3a3210;
+  --yellow-dark: #ffe58a;
+  --coral-light: #3d1f18;
+  --coral-dark: #ffb9a5;
+  --teal-light: #0f3631;
+  --moss-dark: #9ee6da;
+  --rose-light: #3b1627;
+  --rose-dark: #ffb3d1;
+  --canvas: #0e0e1c;
+  --surface: #15152a;
+  --surface-soft: #121224;
+  --hairline: #26263f;
+  --hairline-soft: #1e1e35;
+  --hairline-strong: #3a3a58;
+  --ink-deep: #ffffff;
+  --ink: #eeeefa;
+  --charcoal: #d6d6e8;
+  --slate: #b0b2c8;
+  --steel: #9a9cb4;
+  --stone: #85879e;
+  --muted: #6a6c84;
+  --success: #4fd69c;
+  --success-bg: #0f3326;
+  --warning: #ffcc66;
+  --warning-bg: #3a2c0a;
+  --danger: #ff8a80;
+  --danger-bg: #3d1513;
+  --shadow-4: 0 16px 48px -8px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
