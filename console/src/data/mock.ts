@@ -1,7 +1,10 @@
 // FAKE data for the console. Apps, people, tickets and problems mirror
 // harness/src/tools/fixtures.ts so the UI and the harness tell the same story.
 // Requests (REQ/RITM) are console-only inventions until the harness has a tool for them.
-// Delete this file once the console reads from the harness API.
+// When the harness is running, the chat uses it (src/api/harness.ts) and this file only
+// feeds the demo conversation and the context panel.
+
+import type { PlanStep, Resolution } from '../api/harness'
 
 export type Env = 'production' | 'staging' | 'dev'
 
@@ -40,6 +43,18 @@ export type Message =
       tools?: ToolCall[]
       approval?: Approval
       streaming?: boolean
+      /** Model reasoning, streamed from harness `thinking` events. */
+      thinking?: string
+      /** Latest plan from `plan` events (also saved as Plan.md in the session workspace). */
+      plan?: { goal: string; steps: PlanStep[] }
+      /** Structured result from the `resolution` event. */
+      resolution?: Resolution
+      /** Model calls so far in this run (`turn_start.step`). */
+      step?: number
+      /** Harness notices: nudges, limits, errors. */
+      notices?: { kind: 'info' | 'warn' | 'error'; text: string }[]
+      /** Scratch files the agent wrote this run. */
+      files?: string[]
     }
 
 // ---------- CMDB: apps and teams ----------
