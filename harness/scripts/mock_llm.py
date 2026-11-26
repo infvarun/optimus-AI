@@ -9,7 +9,7 @@ local models do:
   step 3  calls a tool with WRONG arguments        (dynatrace_problems {"application": ...})
   step 4  reads the error, retries + a 2nd call    (dynatrace_problems + servicenow_change_search, parallel)
   step 5  saves findings to scratch                (workspace_write context.md)
-  step 6  checks the runbook                       (servicenow_kb_search)
+  step 6  updates the plan, checks the runbook     (update_plan + servicenow_kb_search)
   step 7  stops early with plain text, NO submit   -> the harness nudges it
   step 8  after the nudge, finishes                (submit_resolution)
 
@@ -84,8 +84,10 @@ def script(req: dict) -> tuple[str, list[tuple[str, dict]] | str]:
         return "Save what I know so far.", [("workspace_write", {"name": "context.md", "content":
                 "- P-2511734 failure rate, root cause csp-orders-db\n- CHG0045817 release 2.14.0, 30 min ago\n"})]
     if n == 5:
-        return "Hypothesis: pool exhaustion after the release. Find the runbook.", [
-            ("servicenow_kb_search", {"query": "db connection pool exhausted", "app": "csp"})]
+        progress = {**PLAN, "steps": [{**s, "status": "done"} for s in PLAN["steps"][:3]]
+                    + [{**PLAN["steps"][3], "status": "in_progress"}]}
+        return "Hypothesis: pool exhaustion after the release. Update the plan and find the runbook.", [
+            ("update_plan", progress), ("servicenow_kb_search", {"query": "db connection pool exhausted", "app": "csp"})]
     if not nudged:
         return "I think I'm done.", "It looks like a DB pool issue after the release."
     return "I was asked to finish properly.", [("submit_resolution", RESOLUTION)]
