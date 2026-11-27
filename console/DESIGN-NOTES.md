@@ -95,14 +95,14 @@ Rebuilt the console around Varun's hand-sketched flow. Everything is still mock 
 `copilot_mode` in the run context so the harness can tell them apart once it supports it. Plan sends `plan`.
 The context also carries `app`, `ci`, `queue`, `team`, `incident` and `skills` (priority order).
 
-**Prime, the mascot** (`src/mascot/`). An original character: a chunky gumdrop with round ears, a little antenna
-and a pale belly. Palette is a soft periwinkle to violet to orchid gradient, loosely inspired by Meta's Muse
-tones (not copied), so it stays calm beside Pfizer blue. SVG + CSS only.
-- Expressions: happy, joy, grin, wink, curious, surprised, thinking, focused, sleepy, sad.
-- Props: wave, magnifier (searching), sign with a tick (ready), clipboard (typing a name), confetti (done).
-- Idle: slow bob, blinks every ~5 s, glances around every ~11 s, antenna sway, an ear twitch. Dozes off after
-  90 s without input.
-- Working: while a run is going it sits sideways with a laptop and types; the screen light flickers on its face.
+**Prime, the mascot** (`src/mascot/`). An original AI-agent character, redesigned after Varun found the first
+version too funny: a small hovering assistant with a soft white shell, a dark indigo glass visor where glowing
+cyan eyes live, periwinkle-to-lavender ear pods, an antenna light and a chest core that breathes slowly. It
+floats instead of walking, and a faint aura pulses behind it, so the motion stays soothing. SVG + CSS only.
+- Expressions (eye shapes on the visor): happy, joy, grin, wink, curious, surprised, thinking, focused, sleepy, sad.
+- Props: wave, magnifier (searching), card with a tick (ready), clipboard (typing a name), soft sparks (done).
+- Idle: slow hover, blinks every ~6 s, glances every ~12 s, core and antenna glow breathe. Dozes off after 90 s.
+- Working: turns sideways to a laptop and types; the screen light plays on its visor and the core pulses faster.
 - One instance for the whole app (`MascotDock`), so moving between the navbar and the canvas is a real flight
   along an arc. Everything stops under `prefers-reduced-motion`.
 

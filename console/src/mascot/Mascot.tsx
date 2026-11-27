@@ -1,15 +1,16 @@
-import { memo, useId, type CSSProperties } from 'react'
+import { memo, useId } from 'react'
 import './mascot.css'
 
 /**
- * Prime, the Optimus mascot. An original character: a chunky blue gumdrop with round ears,
- * a little signal antenna and a pale belly. All SVG + CSS, so it scales cleanly from the
- * 44px navbar slot to the onboarding canvas, and every motion stops under
- * prefers-reduced-motion.
+ * Prime, the Optimus agent. An original character: a small hovering assistant with a soft
+ * white shell, a dark glass visor where its glowing eyes live, side "ear" pods, a little
+ * antenna light and a chest core that breathes slowly. It floats rather than walks, so the
+ * motion stays calm. Pure SVG + CSS: crisp from the 54px navbar slot to the onboarding
+ * canvas, and every motion stops under prefers-reduced-motion.
  *
- * Two poses share one face rig:
- *  - stand: idle bob, blinks, glances around, antenna sway; holds props.
- *  - laptop: sits sideways with a laptop on its lap and types (used while the agent works).
+ * Poses:
+ *  - stand: hovers, blinks, glances around; holds props.
+ *  - laptop: turns sideways with a laptop in front and types (while the agent works).
  */
 
 export type Expression = 'happy' | 'joy' | 'grin' | 'wink' | 'curious' | 'surprised' | 'thinking' | 'focused' | 'sleepy' | 'sad'
@@ -26,75 +27,96 @@ interface Props {
   className?: string
 }
 
-function Eyes({ expression, look }: { expression: Expression; look: 'front' | 'side' }) {
-  const lx = look === 'side' ? 70 : 64
-  const rx = look === 'side' ? 98 : 96
-  const px = look === 'side' ? 3 : 0
-  const py = look === 'side' ? 3 : 0
-  const closed = expression === 'sleepy'
-  const big = expression === 'surprised'
+type G = { shell: string; visor: string; pod: string; glow: string; aura: string }
 
-  const eye = (cx: number, side: 'l' | 'r') => {
-    if (closed || (expression === 'wink' && side === 'r')) {
-      return <path key={side} d={`M${cx - 8} 76 Q${cx} 82 ${cx + 8} 76`} className="m-line" />
-    }
-    if (expression === 'joy' || expression === 'grin') {
-      // Smiling eyes: soft upside-down arcs read as warm at small sizes.
-      return <path key={side} d={`M${cx - 8} 77 Q${cx} 68 ${cx + 8} 77`} className="m-line m-line--thick" />
-    }
-    const ry = big ? 13 : expression === 'focused' ? 7 : 11
-    return (
-      <g key={side} className="m-eye">
-        <ellipse cx={cx} cy={74} rx={big ? 10 : 9} ry={ry} className="m-eye__white" />
-        <g className={look === 'front' ? 'm-pupil m-pupil--roam' : 'm-pupil'}>
-          <circle cx={cx + px + (expression === 'thinking' ? -3 : 0)} cy={75 + py + (expression === 'thinking' ? -4 : 0)} r={big ? 4.6 : 5.4} className="m-eye__pupil" />
-          <circle cx={cx + px + 2 + (expression === 'thinking' ? -3 : 0)} cy={72 + py + (expression === 'thinking' ? -4 : 0)} r={1.8} className="m-eye__glint" />
-        </g>
-      </g>
-    )
+/** Eyes are light on the visor glass: shape carries the expression. */
+function Eyes({ e, dx = 0 }: { e: Expression; dx?: number }) {
+  const L = 68 + dx
+  const R = 96 + dx
+  const Y = 66
+  const arc = (x: number, up: boolean) => <path d={up ? `M${x - 6} ${Y + 2} Q${x} ${Y - 6} ${x + 6} ${Y + 2}` : `M${x - 6} ${Y - 1} Q${x} ${Y + 5} ${x + 6} ${Y - 1}`} className="m-eye-line" />
+  const pill = (x: number, h = 14, w = 9, y = Y) => <rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={w / 2} className="m-eye" />
+
+  let left: JSX.Element
+  let right: JSX.Element
+  switch (e) {
+    case 'joy':
+    case 'grin':
+      left = arc(L, true)
+      right = arc(R, true)
+      break
+    case 'wink':
+      left = pill(L)
+      right = arc(R, true)
+      break
+    case 'sleepy':
+      left = <path d={`M${L - 6} ${Y} H${L + 6}`} className="m-eye-line" />
+      right = <path d={`M${R - 6} ${Y} H${R + 6}`} className="m-eye-line" />
+      break
+    case 'focused':
+      left = pill(L, 6, 12)
+      right = pill(R, 6, 12)
+      break
+    case 'surprised':
+      left = <circle cx={L} cy={Y} r={6.5} className="m-eye" />
+      right = <circle cx={R} cy={Y} r={6.5} className="m-eye" />
+      break
+    case 'thinking':
+      left = pill(L - 2, 12, 9, Y - 3)
+      right = pill(R - 2, 12, 9, Y - 3)
+      break
+    case 'sad':
+      left = <path d={`M${L - 5} ${Y - 4} L${L + 5} ${Y + 1}`} className="m-eye-line" />
+      right = <path d={`M${R + 5} ${Y - 4} L${R - 5} ${Y + 1}`} className="m-eye-line" />
+      break
+    case 'curious':
+      left = pill(L, 11)
+      right = pill(R, 16, 10)
+      break
+    default:
+      left = pill(L)
+      right = pill(R)
   }
-
+  const blinks = ['happy', 'curious', 'thinking', 'surprised', 'wink'].includes(e)
   return (
-    <g className="m-eyes">
-      {eye(lx, 'l')}
-      {eye(rx, 'r')}
-      {expression === 'focused' && (
-        <>
-          <path d={`M${lx - 10} 64 L${lx + 9} 66`} className="m-line" />
-          <path d={`M${rx - 9} 66 L${rx + 10} 64`} className="m-line" />
-        </>
-      )}
-      {expression === 'curious' && <path d={`M${rx - 9} 58 Q${rx} 52 ${rx + 9} 57`} className="m-line" />}
-      {expression === 'thinking' && <path d={`M${lx - 8} 59 L${lx + 8} 57`} className="m-line" />}
-      {expression === 'sad' && (
-        <>
-          <path d={`M${lx - 9} 60 L${lx + 7} 64`} className="m-line" />
-          <path d={`M${rx + 9} 60 L${rx - 7} 64`} className="m-line" />
-        </>
-      )}
+    <g className={`m-eyes${blinks ? ' m-eyes--blink' : ''}${e === 'happy' ? ' m-eyes--roam' : ''}`}>
+      {left}
+      {right}
     </g>
   )
 }
 
-function Mouth({ expression, cx }: { expression: Expression; cx: number }) {
-  switch (expression) {
-    case 'grin':
-      return <path d={`M${cx - 9} 92 Q${cx} 106 ${cx + 9} 92 Z`} className="m-mouth-open" />
-    case 'surprised':
-      return <ellipse cx={cx} cy={97} rx={4.5} ry={5.5} className="m-mouth-open" />
-    case 'curious':
-      return <circle cx={cx + 2} cy={96} r={3} className="m-mouth-open" />
-    case 'thinking':
-      return <path d={`M${cx - 6} 96 Q${cx - 2} 93 ${cx + 2} 96 T${cx + 8} 95`} className="m-line" />
-    case 'focused':
-      return <path d={`M${cx - 5} 96 L${cx + 5} 96`} className="m-line" />
-    case 'sleepy':
-      return <ellipse cx={cx} cy={96} rx={3} ry={2.4} className="m-mouth-open" />
-    case 'sad':
-      return <path d={`M${cx - 7} 99 Q${cx} 92 ${cx + 7} 99`} className="m-line" />
-    default:
-      return <path d={`M${cx - 8} 92 Q${cx} 101 ${cx + 8} 92`} className="m-line" />
-  }
+function Mouth({ e, dx = 0 }: { e: Expression; dx?: number }) {
+  const x = 82 + dx
+  if (e === 'sleepy' || e === 'focused' || e === 'thinking') return null
+  if (e === 'surprised') return <circle cx={x} cy={81} r={2.4} className="m-eye" />
+  if (e === 'sad') return <path d={`M${x - 5} 83 Q${x} 79 ${x + 5} 83`} className="m-mouth" />
+  if (e === 'grin') return <path d={`M${x - 7} 79 Q${x} 87 ${x + 7} 79`} className="m-mouth m-mouth--wide" />
+  return <path d={`M${x - 5} 80 Q${x} 84 ${x + 5} 80`} className="m-mouth" />
+}
+
+function Head({ g, e, dx = 0 }: { g: G; e: Expression; dx?: number }) {
+  return (
+    <g className="m-head">
+      {/* antenna light */}
+      <g className="m-antenna">
+        <path d="M82 26 V16" className="m-antenna__stem" />
+        <circle cx={82} cy={13} r={4.5} className="m-antenna__tip" />
+      </g>
+      {/* ear pods */}
+      <rect x={28} y={54} width={12} height={26} rx={6} fill={g.pod} />
+      <rect x={124} y={54} width={12} height={26} rx={6} fill={g.pod} />
+      <rect x={31} y={61} width={4} height={12} rx={2} className="m-pod-light" />
+      <rect x={129} y={61} width={4} height={12} rx={2} className="m-pod-light" />
+      {/* shell */}
+      <rect x={36} y={26} width={92} height={76} rx={34} fill={g.shell} className="m-shell" />
+      {/* visor */}
+      <rect x={45} y={41} width={74} height={48} rx={24} fill={g.visor} />
+      <path d="M56 48 Q70 43 86 44" className="m-visor-shine" />
+      <Eyes e={e} dx={dx} />
+      <Mouth e={e} dx={dx} />
+    </g>
+  )
 }
 
 function PropItem({ prop }: { prop: Prop }) {
@@ -102,35 +124,29 @@ function PropItem({ prop }: { prop: Prop }) {
     case 'magnifier':
       return (
         <g className="m-prop m-prop--sweep">
-          <path d="M128 112 L142 128" className="m-handle" />
-          <circle cx={120} cy={102} r={13} className="m-glass" />
-          <path d="M113 96 Q117 91 123 92" className="m-glass__shine" />
+          <path d="M139 122 L150 134" className="m-handle" />
+          <circle cx={132} cy={113} r={11} className="m-glass" />
         </g>
       )
     case 'sign':
       return (
         <g className="m-prop m-prop--nod">
-          <path d="M132 136 L132 84" className="m-handle" />
-          <rect x={114} y={56} width={38} height={32} rx={7} className="m-sign" />
-          <path d="M124 72 L131 79 L143 64" className="m-sign__tick" />
+          <rect x={124} y={92} width={30} height={26} rx={8} className="m-card" />
+          <path d="M132 105 L137 110 L146 100" className="m-tick" />
         </g>
       )
     case 'clipboard':
       return (
         <g className="m-prop">
-          <rect x={112} y={92} width={30} height={38} rx={5} className="m-sign" />
-          <rect x={120} y={88} width={14} height={7} rx={3} className="m-clip" />
-          <path d="M118 106 H136 M118 114 H136 M118 122 H130" className="m-sign__lines" />
+          <rect x={124} y={98} width={26} height={32} rx={6} className="m-card" />
+          <path d="M130 108 H144 M130 115 H144 M130 122 H139" className="m-card__lines" />
         </g>
       )
     case 'confetti':
       return (
         <g className="m-confetti" aria-hidden="true">
-          {[
-            [30, 30, '#ffd02f'], [130, 24, '#38d6f5'], [18, 70, '#ff7aa8'], [144, 64, '#ffd02f'],
-            [44, 12, '#7fe3c3'], [116, 8, '#ff7aa8'], [148, 100, '#38d6f5'], [12, 108, '#7fe3c3'],
-          ].map(([x, y, c], i) => (
-            <rect key={i} x={x as number} y={y as number} width={6} height={9} rx={1.5} fill={c as string} style={{ animationDelay: `${i * 60}ms` }} />
+          {[[26, 34], [138, 28], [18, 82], [148, 76], [46, 12], [118, 10], [150, 112], [14, 118]].map(([x, y], i) => (
+            <circle key={i} cx={x} cy={y} r={i % 2 ? 2.6 : 3.4} className={`m-spark m-spark--${i % 3}`} style={{ animationDelay: `${i * 70}ms` }} />
           ))}
         </g>
       )
@@ -139,99 +155,58 @@ function PropItem({ prop }: { prop: Prop }) {
   }
 }
 
-function Antenna({ x = 80 }: { x?: number }) {
-  return (
-    <g className="m-antenna" style={{ transformOrigin: `${x}px 34px` }}>
-      <path d={`M${x} 34 Q${x + 2} 22 ${x + 7} 16`} className="m-antenna__stem" />
-      <circle cx={x + 8} cy={14} r={5.5} className="m-antenna__tip" />
-    </g>
-  )
-}
-
-const BODY = 'M80 30 C110 30 126 54 126 86 C126 120 108 142 80 142 C52 142 34 120 34 86 C34 54 50 30 80 30 Z'
-
-function Standing({ expression, prop }: { expression: Expression; prop: Prop }) {
-  const armsUp = prop === 'confetti'
+function Standing({ g, e, prop }: { g: G; e: Expression; prop: Prop }) {
   const holding = prop === 'magnifier' || prop === 'sign' || prop === 'clipboard'
+  const up = prop === 'confetti'
   return (
     <g className="m-pose m-pose--stand">
-      <ellipse cx={80} cy={150} rx={34} ry={5} className="m-shadow" />
-      <g className="m-bob">
-        <ellipse cx={64} cy={142} rx={11} ry={6.5} className="m-foot" />
-        <ellipse cx={96} cy={142} rx={11} ry={6.5} className="m-foot" />
-        <g className="m-ear m-ear--l">
-          <circle cx={50} cy={42} r={14} className="m-fill" />
-          <circle cx={50} cy={42} r={6.5} className="m-ear__inner" />
+      <ellipse cx={82} cy={152} rx={24} ry={4} className="m-shadow" />
+      <g className="m-hover">
+        <circle cx={82} cy={70} r={62} fill={g.aura} className="m-aura" />
+        {/* body */}
+        <path d="M60 106 Q60 100 66 100 H98 Q104 100 104 106 V120 Q104 136 82 138 Q60 136 60 120 Z" fill={g.shell} className="m-shell" />
+        <circle cx={82} cy={117} r={6} fill={g.glow} className="m-core" />
+        {/* hands */}
+        <g className={up ? 'm-hand m-hand--up-l' : 'm-hand m-hand--l'} style={{ transformOrigin: '60px 108px' }}>
+          <ellipse cx={48} cy={118} rx={7} ry={8} fill={g.shell} className="m-shell" />
         </g>
-        <g className="m-ear m-ear--r">
-          <circle cx={110} cy={42} r={14} className="m-fill" />
-          <circle cx={110} cy={42} r={6.5} className="m-ear__inner" />
-        </g>
-        <Antenna />
-        <path d={BODY} className="m-fill" />
-        <path d="M46 60 C52 44 64 38 76 37" className="m-sheen" />
-        <ellipse cx={80} cy={123} rx={24} ry={17} className="m-belly" />
-        <Eyes expression={expression} look="front" />
-        <ellipse cx={54} cy={90} rx={6} ry={3.6} className="m-cheek" />
-        <ellipse cx={106} cy={90} rx={6} ry={3.6} className="m-cheek" />
-        <Mouth expression={expression} cx={80} />
-        {/* Left arm */}
-        <g className={armsUp ? 'm-arm m-arm--up-l' : 'm-arm m-arm--l'} style={{ transformOrigin: '40px 104px' }}>
-          <ellipse cx={34} cy={112} rx={8} ry={13} transform="rotate(24 34 112)" className="m-fill" />
-        </g>
-        {/* Right arm: waves, holds a prop, or rests */}
         <g
-          className={
-            prop === 'wave' ? 'm-arm m-arm--wave' : armsUp ? 'm-arm m-arm--up-r' : holding ? 'm-arm m-arm--hold' : 'm-arm m-arm--r'
-          }
-          style={{ transformOrigin: '120px 104px' }}
+          className={prop === 'wave' ? 'm-hand m-hand--wave' : up ? 'm-hand m-hand--up-r' : holding ? 'm-hand m-hand--hold' : 'm-hand m-hand--r'}
+          style={{ transformOrigin: '104px 108px' }}
         >
-          <ellipse cx={126} cy={112} rx={8} ry={13} transform="rotate(-24 126 112)" className="m-fill" />
+          <ellipse cx={116} cy={118} rx={7} ry={8} fill={g.shell} className="m-shell" />
         </g>
+        <Head g={g} e={e} />
         <PropItem prop={prop} />
       </g>
     </g>
   )
 }
 
-/** Sitting sideways, laptop on its lap, typing. The screen light flickers on its face. */
-function Laptop({ expression }: { expression: Expression }) {
+/** Turned sideways at a laptop, typing; the screen light plays on its visor. */
+function Laptop({ g, e }: { g: G; e: Expression }) {
   return (
     <g className="m-pose m-pose--laptop">
-      <ellipse cx={86} cy={150} rx={46} ry={5} className="m-shadow" />
-      <g className="m-breathe">
-        {/* legs stretched toward the laptop */}
-        <ellipse cx={104} cy={140} rx={16} ry={7} className="m-foot" />
-        <ellipse cx={96} cy={144} rx={14} ry={6.5} className="m-foot" />
-        <g className="m-ear m-ear--l">
-          <circle cx={52} cy={46} r={13} className="m-fill" />
-          <circle cx={52} cy={46} r={6} className="m-ear__inner" />
+      <ellipse cx={90} cy={152} rx={40} ry={4} className="m-shadow" />
+      <g className="m-hover m-hover--slow">
+        <circle cx={78} cy={72} r={58} fill={g.aura} className="m-aura" />
+        <path d="M50 106 Q50 100 56 100 H90 Q96 100 96 106 V120 Q96 136 73 138 Q50 136 50 120 Z" fill={g.shell} className="m-shell" />
+        <circle cx={73} cy={117} r={5.5} fill={g.glow} className="m-core m-core--busy" />
+        <g transform="translate(-6 2)">
+          <Head g={g} e={e === 'happy' ? 'focused' : e} dx={8} />
         </g>
-        <g className="m-ear m-ear--r">
-          <circle cx={104} cy={40} r={13} className="m-fill" />
-          <circle cx={104} cy={40} r={6} className="m-ear__inner" />
-        </g>
-        <Antenna x={78} />
-        <path d="M78 32 C106 32 122 54 122 86 C122 118 106 142 78 142 C50 142 36 118 36 88 C36 56 50 32 78 32 Z" className="m-fill" />
-        <path d="M46 62 C52 46 62 40 74 39" className="m-sheen" />
-        <ellipse cx={72} cy={124} rx={21} ry={15} className="m-belly" />
-        <Eyes expression={expression} look="side" />
-        <ellipse cx={110} cy={92} rx={5} ry={3.2} className="m-cheek" />
-        <Mouth expression={expression === 'happy' ? 'focused' : expression} cx={88} />
-        {/* screen glow on the face */}
-        <ellipse cx={104} cy={86} rx={22} ry={26} className="m-glow" />
-        {/* arms reaching to the keyboard, alternating taps */}
-        <g className="m-type m-type--a"><ellipse cx={108} cy={118} rx={7} ry={11} transform="rotate(-62 108 118)" className="m-fill" /></g>
-        <g className="m-type m-type--b"><ellipse cx={100} cy={124} rx={7} ry={11} transform="rotate(-70 100 124)" className="m-fill-shade" /></g>
-        {/* laptop, seen from behind its lid */}
-        <path d="M112 128 L156 124 L160 130 L116 134 Z" className="m-laptop-base" />
-        <path d="M124 90 L158 84 L156 124 L120 128 Z" className="m-laptop-lid" />
-        <circle cx={139} cy={106} r={4} className="m-laptop-logo" />
-        {/* tiny thoughts drifting up from the work */}
+        <ellipse cx={104} cy={70} rx={18} ry={20} className="m-screenlight" />
+        {/* laptop, seen from the side and slightly behind */}
+        <path d="M100 132 L152 128 L156 134 L104 138 Z" className="m-laptop-base" />
+        <path d="M128 96 L156 92 L152 128 L124 131 Z" className="m-laptop-lid" />
+        <circle cx={140} cy={112} r={3} className="m-laptop-logo" />
+        {/* hands tapping */}
+        <g className="m-type m-type--a"><ellipse cx={110} cy={128} rx={7} ry={5.5} fill={g.shell} className="m-shell" /></g>
+        <g className="m-type m-type--b"><ellipse cx={96} cy={130} rx={7} ry={5.5} fill={g.shell} className="m-shell" /></g>
         <g className="m-bits" aria-hidden="true">
-          <circle cx={140} cy={74} r={2.4} />
-          <circle cx={150} cy={66} r={1.8} />
-          <circle cx={132} cy={62} r={1.6} />
+          <rect x={136} y={78} width={8} height={2.6} rx={1.3} />
+          <rect x={146} y={70} width={6} height={2.6} rx={1.3} />
+          <rect x={130} y={66} width={7} height={2.6} rx={1.3} />
         </g>
       </g>
     </g>
@@ -239,8 +214,8 @@ function Laptop({ expression }: { expression: Expression }) {
 }
 
 export const Mascot = memo(function Mascot({ expression = 'happy', prop = 'none', pose = 'stand', size = 120, label, className }: Props) {
-  const gid = `m${useId().replace(/[^a-zA-Z0-9]/g, '')}`
-  const style = { '--m-body': `url(#${gid}b)`, '--m-shade': `url(#${gid}s)` } as CSSProperties
+  const id = `m${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const g: G = { shell: `url(#${id}sh)`, visor: `url(#${id}vi)`, pod: `url(#${id}po)`, glow: `url(#${id}gl)`, aura: `url(#${id}au)` }
   return (
     <svg
       className={`mascot mascot--${pose}${className ? ` ${className}` : ''}`}
@@ -251,21 +226,30 @@ export const Mascot = memo(function Mascot({ expression = 'happy', prop = 'none'
       aria-label={label}
       aria-hidden={label ? undefined : true}
       focusable="false"
-      style={style}
     >
       <defs>
-        {/* Soft periwinkle-to-lavender body, loosely Muse-like and calm next to Pfizer blue. */}
-        <linearGradient id={`${gid}b`} x1="0.2" y1="0" x2="0.8" y2="1">
-          <stop offset="0" className="m-stop-1" />
-          <stop offset="0.55" className="m-stop-2" />
-          <stop offset="1" className="m-stop-3" />
+        <linearGradient id={`${id}sh`} x1="0.2" y1="0" x2="0.7" y2="1">
+          <stop offset="0" className="m-s-shell1" />
+          <stop offset="1" className="m-s-shell2" />
         </linearGradient>
-        <linearGradient id={`${gid}s`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" className="m-stop-2" />
-          <stop offset="1" className="m-stop-3" />
+        <linearGradient id={`${id}vi`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" className="m-s-visor1" />
+          <stop offset="1" className="m-s-visor2" />
         </linearGradient>
+        <linearGradient id={`${id}po`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" className="m-s-pod1" />
+          <stop offset="1" className="m-s-pod2" />
+        </linearGradient>
+        <radialGradient id={`${id}gl`}>
+          <stop offset="0" className="m-s-glow1" />
+          <stop offset="1" className="m-s-glow2" />
+        </radialGradient>
+        <radialGradient id={`${id}au`}>
+          <stop offset="0" className="m-s-aura1" />
+          <stop offset="1" className="m-s-aura2" />
+        </radialGradient>
       </defs>
-      {pose === 'laptop' ? <Laptop expression={expression} /> : <Standing expression={expression} prop={prop} />}
+      {pose === 'laptop' ? <Laptop g={g} e={expression} /> : <Standing g={g} e={expression} prop={prop} />}
     </svg>
   )
 })
