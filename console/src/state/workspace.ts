@@ -32,6 +32,8 @@ type Action =
   | { type: 'onboardApp'; ciId: string }
   | { type: 'setApp'; ciId: string | null }
   | { type: 'dismissNudge'; value: boolean }
+  | { type: 'removeApp'; teamId: string; ciId: string }
+  | { type: 'removeTeam'; id: string }
   | { type: 'reset' }
 
 function reducer(s: WorkspaceState, a: Action): WorkspaceState {
@@ -54,6 +56,24 @@ function reducer(s: WorkspaceState, a: Action): WorkspaceState {
       return { ...s, activeApp: a.ciId }
     case 'dismissNudge':
       return { ...s, nudgeDismissed: a.value }
+    case 'removeApp': {
+      const list = (s.teamApps[a.teamId] ?? []).filter((c) => c !== a.ciId)
+      return { ...s, teamApps: { ...s.teamApps, [a.teamId]: list }, activeApp: s.activeApp === a.ciId && s.activeTeam === a.teamId ? null : s.activeApp }
+    }
+    case 'removeTeam': {
+      const myTeams = s.myTeams.filter((t) => t !== a.id)
+      const { [a.id]: gone, ...teamApps } = s.teamApps
+      const wasActive = s.activeTeam === a.id
+      return {
+        ...s,
+        // A team created here is deleted outright; a directory team is only removed from your workspace.
+        createdTeams: s.createdTeams.filter((t) => t.id !== a.id),
+        myTeams,
+        teamApps,
+        activeTeam: wasActive ? (myTeams[0] ?? null) : s.activeTeam,
+        activeApp: wasActive || (gone ?? []).includes(s.activeApp ?? '') ? null : s.activeApp,
+      }
+    }
     case 'reset':
       return initial
   }
@@ -118,6 +138,10 @@ export function useWorkspace() {
     onboardApp: (ciId: string) => dispatch({ type: 'onboardApp', ciId }),
     setApp: (ciId: string | null) => dispatch({ type: 'setApp', ciId }),
     dismissNudge: (value = true) => dispatch({ type: 'dismissNudge', value }),
+    removeApp: (teamId: string, ciId: string) => dispatch({ type: 'removeApp', teamId, ciId }),
+    removeTeam: (id: string) => dispatch({ type: 'removeTeam', id }),
+    /** Teams created here can be deleted; directory teams can only be left. */
+    isOwnTeam: (id: string) => state.createdTeams.some((t) => t.id === id),
     reset: () => dispatch({ type: 'reset' }),
   }
 }

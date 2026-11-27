@@ -248,6 +248,27 @@ export default function App() {
     ws.setApp(ciId)
   }, [ws, messages.length, startOver])
 
+  const removeApp = useCallback((teamId: string, a: CmdbApp) => {
+    if (ws.app?.ciId === a.ciId && ws.team?.id === teamId) {
+      startOver()
+      setView('home')
+    }
+    ws.removeApp(teamId, a.ciId)
+    showToast(`Removed ${a.name}.`)
+  }, [ws, startOver, showToast])
+
+  const removeTeam = useCallback((teamId: string) => {
+    const t = ws.teams.find((x) => x.id === teamId)
+    const own = ws.isOwnTeam(teamId)
+    if (ws.team?.id === teamId) {
+      startOver()
+      setView('home')
+    }
+    ws.removeTeam(teamId)
+    if (ws.teams.length <= 1) setModal(false)
+    showToast(own ? `Deleted ${t?.name ?? 'the team'}.` : `You left ${t?.name ?? 'the team'}.`)
+  }, [ws, startOver, showToast])
+
   const reset = useCallback(() => {
     startOver()
     ws.reset()
@@ -466,6 +487,9 @@ export default function App() {
           onConfigure={() => showToast('The app configuration canvas is coming next.')}
           onAddApp={startApp}
           onAddTeam={startTeam}
+          onRemoveApp={removeApp}
+          onRemoveTeam={removeTeam}
+          isOwnTeam={ws.isOwnTeam}
           onClose={() => setModal(false)}
         />
       )}

@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useRef, useState } from 'react'
-import { ArrowRight, ChevronLeft, ChevronRight, Plus, Search, Settings2, UserPlus, X } from 'lucide-react'
+import { ArrowRight, ChevronLeft, ChevronRight, LogOut, Plus, Search, Settings2, Trash2, UserPlus, X } from 'lucide-react'
 import type { CmdbApp, DirTeam } from '../data/directory'
 
 const PAGE = 4
@@ -14,10 +14,15 @@ interface Props {
   onConfigure: (app: CmdbApp) => void
   onAddApp: () => void
   onAddTeam: () => void
+  onRemoveApp: (teamId: string, app: CmdbApp) => void
+  onRemoveTeam: (teamId: string) => void
+  isOwnTeam: (teamId: string) => boolean
   onClose: () => void
 }
 
-export function TeamAppsModal({ teams, activeTeamId, appsOf, onSwitchTeam, onGo, onConfigure, onAddApp, onAddTeam, onClose }: Props) {
+export function TeamAppsModal({ teams, activeTeamId, appsOf, onSwitchTeam, onGo, onConfigure, onAddApp, onAddTeam, onRemoveApp, onRemoveTeam, isOwnTeam, onClose }: Props) {
+  const [confirmApp, setConfirmApp] = useState<string | null>(null)
+  const [confirmTeam, setConfirmTeam] = useState(false)
   const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
   const dq = useDeferredValue(q)
@@ -30,6 +35,9 @@ export function TeamAppsModal({ teams, activeTeamId, appsOf, onSwitchTeam, onGo,
   const view = filtered.slice(page * PAGE, page * PAGE + PAGE)
 
   useEffect(() => setPage(0), [dq, activeTeamId])
+  useEffect(() => { setConfirmTeam(false); setConfirmApp(null) }, [activeTeamId])
+  useEffect(() => { if (page > 0 && page >= pages) setPage(pages - 1) }, [page, pages])
+  const own = team ? isOwnTeam(team.id) : false
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
@@ -75,11 +83,22 @@ export function TeamAppsModal({ teams, activeTeamId, appsOf, onSwitchTeam, onGo,
           <>
             <ul className="appgrid" aria-label="Apps">
               {view.map((a) => (
-                <li key={a.ciId} className="appcard">
+                <li key={a.ciId} className={`appcard${confirmApp === a.ciId ? ' is-confirm' : ''}`}>
+                  {confirmApp === a.ciId ? (
+                    <div className="confirm" role="alertdialog" aria-labelledby={`rm-${a.ciId}`}>
+                      <p id={`rm-${a.ciId}`} className="confirm__title">Remove {a.name} from {team?.name}?</p>
+                      <p className="confirm__text">Its incidents leave this team’s workspace. You can add it again by CI ID. Saved chat history stays.</p>
+                      <div className="appcard__actions">
+                        <button className="btn btn--secondary btn--sm" autoFocus onClick={() => setConfirmApp(null)}>Cancel</button>
+                        <button className="btn btn--danger btn--sm" onClick={() => { setConfirmApp(null); team && onRemoveApp(team.id, a) }}><Trash2 size={14} aria-hidden="true" /> Remove app</button>
+                      </div>
+                    </div>
+                  ) : (<>
                   <div className="appcard__top">
                     <span className={`health-dot health-dot--${a.health}`} aria-label={`Health: ${a.health}`} />
                     <span className="appcard__kind">{kindLabel[a.kind]}</span>
                     <span className="mono appcard__ci">{a.ciId}</span>
+                    <button className="icon-btn icon-btn--sm icon-btn--danger" aria-label={`Remove ${a.name}`} title="Remove app" onClick={() => setConfirmApp(a.ciId)}><Trash2 size={14} /></button>
                   </div>
                   <h3 className="appcard__name">{a.name}</h3>
                   <p className="appcard__meta">{a.service}{a.offering ? ` · ${a.offering}` : ''}</p>
@@ -88,6 +107,7 @@ export function TeamAppsModal({ teams, activeTeamId, appsOf, onSwitchTeam, onGo,
                     <button className="btn btn--secondary btn--sm" onClick={() => onConfigure(a)}><Settings2 size={14} aria-hidden="true" /> Configure</button>
                     <button className="btn btn--primary btn--sm" onClick={() => onGo(a)}>Go <ArrowRight size={14} aria-hidden="true" /></button>
                   </div>
+                  </>)}
                 </li>
               ))}
               {view.length === 0 && <li className="suggest__empty">No app matches “{dq}”.</li>}
@@ -102,7 +122,29 @@ export function TeamAppsModal({ teams, activeTeamId, appsOf, onSwitchTeam, onGo,
             </footer>
           </>
         )}
-        <button className="linkbtn" onClick={onAddTeam}><UserPlus size={14} aria-hidden="true" /> Join or create another team</button>
+        {confirmTeam && team ? (
+          <div className="confirm confirm--team" role="alertdialog" aria-labelledby="rm-team">
+            <p id="rm-team" className="confirm__title">{own ? `Delete ${team.name}?` : `Leave ${team.name}?`}</p>
+            <p className="confirm__text">
+              {own
+                ? `This deletes the team and its ${all.length} onboarded ${all.length === 1 ? 'app' : 'apps'} from Optimus. It can’t be undone.`
+                : `You stop seeing its ${all.length} ${all.length === 1 ? 'app' : 'apps'}. The team stays in ServiceNow for everyone else, and you can join again.`}
+            </p>
+            <div className="confirm__actions">
+              <button className="btn btn--secondary btn--sm" autoFocus onClick={() => setConfirmTeam(false)}>Cancel</button>
+              <button className="btn btn--danger btn--sm" onClick={() => { setConfirmTeam(false); onRemoveTeam(team.id) }}>
+                {own ? <><Trash2 size={14} aria-hidden="true" /> Delete team</> : <><LogOut size={14} aria-hidden="true" /> Leave team</>}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="modal__links">
+            <button className="linkbtn" onClick={onAddTeam}><UserPlus size={14} aria-hidden="true" /> Join or create another team</button>
+            <button className="linkbtn linkbtn--danger" onClick={() => setConfirmTeam(true)}>
+              {own ? <><Trash2 size={14} aria-hidden="true" /> Delete team</> : <><LogOut size={14} aria-hidden="true" /> Leave team</>}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

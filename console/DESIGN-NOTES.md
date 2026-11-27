@@ -81,6 +81,8 @@ Rebuilt the console around Varun's hand-sketched flow. Everything is still mock 
 2. No app: Prime suggests app onboarding. Search only, by CI ID or app name. On success Prime flies home, the
    app name flies into the composer's app chip, and the chat box is back.
 3. Team dropdown opens a modal of the team's apps, 4 per page, with search, *Configure* and *Go*.
+   Each card has a remove button, and the modal footer has *Delete team* (teams created in Optimus) or *Leave team*
+   (directory teams). Both ask for an inline confirmation first.
    Configure shows a "coming next" toast: the app configuration canvas is deferred.
 4. *Go* (or asking a question) opens the app workspace: navbar, main area, Copilot sidebar on the right.
    Main area: time-of-day greeting and ServiceNow incidents filtered by queue (mandatory, locked), service
