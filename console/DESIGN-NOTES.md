@@ -69,3 +69,44 @@ the harness exposes read-only tools only, so a write tool plus a lead-approval s
 - **Robustness:** tolerant SSE parser, deltas batched per animation frame, session recreated once if the harness
   restarted (404), friendly errors for 409/429/401/5xx/network, Stop marks the run "Stopped by you".
 - The demo plays scripted runs through the same event reducer as live runs (`src/run/demoScripts.ts`).
+
+## v0.3: team and app onboarding, app workspace, Copilot sidebar
+Rebuilt the console around Varun's hand-sketched flow. Everything is still mock data
+(`src/data/directory.ts`), except chat runs, which use the harness when it is running.
+
+**Flow**
+1. No team: Prime (the mascot, centre of the navbar) offers to help. "Yes" hides the chat box, and Prime flies
+   into a canvas in the centre: *Create a new team* (unique-name check, live) or *Join an existing team*
+   (search, pick, join). On success Prime flies home and the team name flies into the navbar Team dropdown.
+2. No app: Prime suggests app onboarding. Search only, by CI ID or app name. On success Prime flies home, the
+   app name flies into the composer's app chip, and the chat box is back.
+3. Team dropdown opens a modal of the team's apps, 4 per page, with search, *Configure* and *Go*.
+   Configure shows a "coming next" toast: the app configuration canvas is deferred.
+4. *Go* (or asking a question) opens the app workspace: navbar, main area, Copilot sidebar on the right.
+   Main area: time-of-day greeting and ServiceNow incidents filtered by queue (mandatory, locked), service
+   (preferred, on) and service offering (optional, off). Tabs: Assigned to me, Created by me, All in queue. Search.
+5. Picking an incident focuses the chat on it (chip in the composer, incident-specific suggestions). Once a run
+   starts, the incident list gives way to the result: Answer, Table, Chart, Diagram, Files tabs. *Start over*
+   saves the conversation to History and brings the list back.
+6. Sidebar: Chat, Pinned, History tabs. Ask, Plan and Agent modes. The skills row shows which skills apply,
+   in priority order: App › Team › Global. With no app, the workspace says answers come from the global skill.
+
+**Modes and the harness.** The harness has `auto` and `plan` only. Ask and Agent both send `auto`, with
+`copilot_mode` in the run context so the harness can tell them apart once it supports it. Plan sends `plan`.
+The context also carries `app`, `ci`, `queue`, `team`, `incident` and `skills` (priority order).
+
+**Prime, the mascot** (`src/mascot/`). An original character: a chunky gumdrop with round ears, a little antenna
+and a pale belly. Palette is a soft periwinkle to violet to orchid gradient, loosely inspired by Meta's Muse
+tones (not copied), so it stays calm beside Pfizer blue. SVG + CSS only.
+- Expressions: happy, joy, grin, wink, curious, surprised, thinking, focused, sleepy, sad.
+- Props: wave, magnifier (searching), sign with a tick (ready), clipboard (typing a name), confetti (done).
+- Idle: slow bob, blinks every ~5 s, glances around every ~11 s, antenna sway, an ear twitch. Dozes off after
+  90 s without input.
+- Working: while a run is going it sits sideways with a laptop and types; the screen light flickers on its face.
+- One instance for the whole app (`MascotDock`), so moving between the navbar and the canvas is a real flight
+  along an arc. Everything stops under `prefers-reduced-motion`.
+
+**Kept in localStorage** (all reads/writes guarded): teams joined or created, team apps, active app, pinned
+answers, history. *Reset demo setup* in the avatar menu clears it.
+
+**Deferred:** app configuration canvas (Stg/Prod nodes), agent-created tools, real team/app APIs, role checks.

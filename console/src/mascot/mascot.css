@@ -1,0 +1,136 @@
+/*
+ * Prime's palette: a soft periwinkle -> violet -> orchid gradient (loosely inspired by
+ * Meta's Muse tones, not copied), with a pale belly, cyan antenna and warm cheeks.
+ * Calm enough to sit in the navbar all day. --m-body/--m-shade are set inline to the
+ * per-instance gradients; the stop colours live here.
+ */
+.mascot {
+  --m-s1: #7d93ff;
+  --m-s2: #7b6cf6;
+  --m-s3: #a979ec;
+  --m-foot: #5146c4;
+  --m-belly: #eef0ff;
+  --m-ear: #ffc2df;
+  --m-cheek: #ff9cc6;
+  --m-ink: #1b1650;
+  --m-tip: #5ee0f7;
+  --m-glow: #9ff0ff;
+  overflow: visible;
+  display: block;
+}
+.m-stop-1 { stop-color: var(--m-s1); }
+.m-stop-2 { stop-color: var(--m-s2); }
+.m-stop-3 { stop-color: var(--m-s3); }
+
+.m-fill { fill: var(--m-body); }
+.m-fill-shade { fill: var(--m-shade); }
+.m-foot { fill: var(--m-foot); }
+.m-shadow { fill: rgba(5, 0, 56, 0.14); }
+.m-belly { fill: var(--m-belly); }
+.m-sheen { fill: none; stroke: rgba(255, 255, 255, 0.28); stroke-width: 4; stroke-linecap: round; }
+.m-ear__inner { fill: var(--m-ear); }
+.m-cheek { fill: var(--m-cheek); opacity: 0.75; }
+.m-eye__white { fill: #fff; }
+.m-eye__pupil { fill: var(--m-ink); }
+.m-eye__glint { fill: #fff; }
+.m-line { fill: none; stroke: #fff; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.m-line--thick { stroke-width: 4; }
+.m-mouth-open { fill: var(--m-ink); stroke: #fff; stroke-width: 2.4; stroke-linejoin: round; }
+.m-antenna__stem { fill: none; stroke: var(--m-s1); stroke-width: 4; stroke-linecap: round; }
+.m-antenna__tip { fill: var(--m-tip); filter: drop-shadow(0 0 3px var(--m-glow)); }
+.m-handle { stroke: #8a5a00; stroke-width: 6; stroke-linecap: round; }
+.m-glass { fill: rgba(127, 233, 255, 0.35); stroke: #3a3a58; stroke-width: 5; }
+.m-glass__shine { fill: none; stroke: #fff; stroke-width: 2.5; stroke-linecap: round; }
+.m-sign { fill: #fff; stroke: var(--m-ink); stroke-width: 3; }
+.m-sign__tick { fill: none; stroke: #0a7d52; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.m-sign__lines { fill: none; stroke: #9a9cad; stroke-width: 3; stroke-linecap: round; }
+.m-clip { fill: #9a9cad; }
+.m-laptop-base { fill: #b9bccc; }
+.m-laptop-lid { fill: #dfe2ee; stroke: #9a9cad; stroke-width: 2; stroke-linejoin: round; }
+.m-laptop-logo { fill: var(--m-tip); }
+.m-glow { fill: var(--m-glow); opacity: 0.16; mix-blend-mode: screen; }
+.m-bits circle { fill: var(--m-tip); opacity: 0; }
+
+/* Poses cross-fade when swapped. */
+.m-pose { animation: m-pose-in 380ms cubic-bezier(0.2, 0, 0, 1) both; transform-box: fill-box; }
+@keyframes m-pose-in { from { opacity: 0; transform: translateY(6px) scale(0.96); } }
+
+/* ---------- Idle life: slow and small so it never pulls focus ---------- */
+.m-bob { animation: m-bob 3.6s ease-in-out infinite; transform-origin: 80px 148px; }
+@keyframes m-bob {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  50% { transform: translateY(-3px) scale(1.01, 0.995); }
+}
+.m-pose--stand .m-shadow { animation: m-shadow 3.6s ease-in-out infinite; transform-origin: 80px 150px; }
+@keyframes m-shadow { 50% { transform: scaleX(0.9); opacity: 0.8; } }
+
+.m-eye { animation: m-blink 5.2s infinite; transform-box: fill-box; transform-origin: center; }
+.m-eyes .m-eye:nth-child(2) { animation-delay: 30ms; }
+@keyframes m-blink {
+  0%, 93%, 100% { transform: scaleY(1); }
+  95.5% { transform: scaleY(0.1); }
+}
+.m-pupil--roam { animation: m-look 11s ease-in-out infinite; }
+@keyframes m-look {
+  0%, 30%, 100% { transform: translate(0, 0); }
+  36%, 48% { transform: translate(2.5px, -0.5px); }
+  56%, 70% { transform: translate(-2.5px, 0.5px); }
+  76% { transform: translate(0, 0); }
+}
+
+.m-antenna { animation: m-sway 4.4s ease-in-out infinite; }
+@keyframes m-sway { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-7deg); } }
+.m-antenna__tip { animation: m-pulse 2.6s ease-in-out infinite; }
+@keyframes m-pulse { 50% { opacity: 0.65; } }
+
+.m-ear { transform-box: fill-box; transform-origin: 50% 90%; }
+.m-ear--r { animation: m-twitch 9s ease-in-out infinite; }
+@keyframes m-twitch { 0%, 88%, 100% { transform: rotate(0); } 91% { transform: rotate(10deg); } 94% { transform: rotate(-4deg); } }
+
+.m-arm { transition: transform 420ms cubic-bezier(0.34, 1.4, 0.64, 1); }
+.m-arm--wave { transform: rotate(-115deg); animation: m-wave 1.6s ease-in-out infinite; }
+@keyframes m-wave {
+  0%, 100% { transform: rotate(-130deg); }
+  50% { transform: rotate(-100deg); }
+}
+.m-arm--hold { transform: rotate(-38deg); }
+.m-arm--up-l { transform: rotate(120deg); }
+.m-arm--up-r { transform: rotate(-120deg); }
+
+.m-prop { animation: m-prop-in 420ms cubic-bezier(0.34, 1.4, 0.64, 1) both; transform-box: fill-box; transform-origin: 30% 90%; }
+@keyframes m-prop-in { from { opacity: 0; transform: scale(0.6) rotate(-12deg); } }
+.m-prop--sweep { animation: m-prop-in 420ms cubic-bezier(0.34, 1.4, 0.64, 1) both, m-sweep 2.8s ease-in-out 420ms infinite; }
+@keyframes m-sweep { 0%, 100% { transform: rotate(0) translate(0, 0); } 50% { transform: rotate(-8deg) translate(-3px, -2px); } }
+.m-prop--nod { animation: m-prop-in 420ms cubic-bezier(0.34, 1.4, 0.64, 1) both, m-nod 2.2s ease-in-out 420ms infinite; }
+@keyframes m-nod { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(5deg); } }
+
+.m-confetti rect { animation: m-confetti 1.4s cubic-bezier(0.2, 0, 0, 1) both; transform-box: fill-box; transform-origin: center; }
+@keyframes m-confetti {
+  0% { opacity: 0; transform: translateY(24px) rotate(0) scale(0.4); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-10px) rotate(220deg) scale(1); }
+}
+
+/* ---------- Laptop pose ---------- */
+.m-breathe { animation: m-breathe 3.2s ease-in-out infinite; transform-origin: 80px 148px; }
+@keyframes m-breathe { 50% { transform: scale(1.008, 0.992); } }
+.m-type { transform-box: fill-box; transform-origin: 20% 50%; }
+.m-type--a { animation: m-tap 0.42s ease-in-out infinite; }
+.m-type--b { animation: m-tap 0.42s ease-in-out 0.21s infinite; }
+@keyframes m-tap { 50% { transform: translateY(-2.5px) rotate(-4deg); } }
+.m-glow { animation: m-flicker 2.4s steps(6) infinite; }
+@keyframes m-flicker { 0%, 100% { opacity: 0.14; } 30% { opacity: 0.22; } 60% { opacity: 0.12; } }
+.m-bits circle { animation: m-rise 2.4s ease-out infinite; }
+.m-bits circle:nth-child(2) { animation-delay: 0.8s; }
+.m-bits circle:nth-child(3) { animation-delay: 1.6s; }
+@keyframes m-rise {
+  0% { opacity: 0; transform: translateY(8px); }
+  30% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateY(-14px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot *, .mascot { animation: none !important; transition: none !important; }
+  .m-arm--wave { transform: rotate(-115deg); }
+  .m-bits circle { opacity: 0.6; }
+}
