@@ -36,7 +36,7 @@ const TOOL_LABELS: Record<string, string> = {
 export const toolLabel = (name: string) =>
   TOOL_LABELS[name] ?? name.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
 
-const PHASE_LABEL: Record<RunPhase, string> = {
+export const PHASE_LABEL: Record<RunPhase, string> = {
   starting: 'Starting',
   thinking: 'Thinking',
   planning: 'Making a plan',

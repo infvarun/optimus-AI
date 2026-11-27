@@ -2,7 +2,7 @@ import { memo, useMemo, useState } from 'react'
 import { Download, FileText, Pin, PinOff, RotateCcw } from 'lucide-react'
 import type { Message } from '../data/mock'
 import { failureSeries, type CmdbApp, type SnIncident } from '../data/directory'
-import { Activity, ErrorCard, PlanCard, ResolutionCard, RunFootnote, RunStatus } from './AgentRun'
+import { ErrorCard, PlanCard, ResolutionCard, RunFootnote, PHASE_LABEL, toolLabel } from './AgentRun'
 import { Markdown } from './Markdown'
 import { Mascot } from '../mascot/Mascot'
 
@@ -46,8 +46,6 @@ function download(name: string, body: string) {
 
 export const ResultView = memo(function ResultView({ run, app, incident, pinned, onTogglePin, onStartOver, onOpenFile, onRetry }: Props) {
   const [tab, setTab] = useState<Tab>('answer')
-  const [open, setOpen] = useState<boolean | null>(null)
-  const activityOpen = open ?? !!run.streaming
   const tables = useMemo(() => extractTables(run.text), [run.text])
   const done = !run.streaming
 
@@ -87,9 +85,6 @@ export const ResultView = memo(function ResultView({ run, app, incident, pinned,
         </div>
       </header>
 
-      <RunStatus m={run} open={activityOpen} onToggle={() => setOpen(!activityOpen)} />
-      <Activity m={run} open={activityOpen} />
-
       <div className="tabs" role="tablist" aria-label="Output">
         {tabs.filter((t) => t.show).map((t) => (
           <button key={t.id} role="tab" aria-selected={tab === t.id} className={`tab${tab === t.id ? ' is-on' : ''}`} onClick={() => setTab(t.id)}>
@@ -101,30 +96,24 @@ export const ResultView = memo(function ResultView({ run, app, incident, pinned,
 
       <div className="result__panel" role="tabpanel">
         {tab === 'answer' && (
-          <>
-            {run.plan && <PlanCard goal={run.plan.goal} steps={run.plan.steps} running={!!run.streaming} />}
-            {(run.text.trim() || run.streaming) && (
-              <div className={`answer${run.streaming && run.phase === 'writing' ? ' is-writing' : ''}`}>
-                <Markdown text={run.text.trim()} />
-              </div>
-            )}
-            {run.resolution && <ResolutionCard r={run.resolution} />}
-            {run.error && <ErrorCard message={run.error} onRetry={run.prompt && onRetry ? () => onRetry(run.prompt!) : undefined} />}
-            <RunFootnote m={run} />
-          </>
+          !done ? (
+            <Working run={run} />
+          ) : (
+            <>
+              {/* In Plan mode the plan is the result; otherwise it stays with the process in the sidebar. */}
+              {run.plan && !run.resolution && !run.text.trim() && <PlanCard goal={run.plan.goal} steps={run.plan.steps} />}
+              {run.text.trim() && <div className="answer"><Markdown text={run.text.trim()} /></div>}
+              {run.resolution && <ResolutionCard r={run.resolution} />}
+              {run.error && <ErrorCard message={run.error} onRetry={run.prompt && onRetry ? () => onRetry(run.prompt!) : undefined} />}
+              <RunFootnote m={run} />
+            </>
+          )
         )}
         {tab === 'table' && (
-          tables.length ? (
+          !done ? <Working run={run} /> : tables.length ? (
             tables.map((t, i) => <div key={i} className="answer"><Markdown text={t} /></div>)
           ) : (
-            <div className="answer">
-              <Markdown
-                text={
-                  '| Check | Status | Took |\n|---|---|---:|\n' +
-                  ((run.tools ?? []).filter((t) => t.name !== 'update_plan').map((t) => `| ${t.name} | ${t.status} | ${t.durationMs ?? '–'} ms |`).join('\n') || '| No checks yet | | |')
-                }
-              />
-            </div>
+            <p className="result__none">This answer has no tables.</p>
           )
         )}
         {tab === 'chart' && app && <FailureChart app={app} />}
@@ -159,6 +148,19 @@ export const ResultView = memo(function ResultView({ run, app, incident, pinned,
     </section>
   )
 })
+
+/** Placeholder while the run works. The live process is in the Copilot sidebar. */
+function Working({ run }: { run: AgentMessage }) {
+  const current = [...(run.tools ?? [])].reverse().find((t) => t.status === 'running' && t.name !== 'update_plan')
+  const label = current ? toolLabel(current.name) : PHASE_LABEL[run.phase ?? 'starting']
+  return (
+    <div className="working" role="status">
+      <Mascot size={88} pose="laptop" expression="focused" />
+      <p className="working__label shimmer">{label}…</p>
+      <p className="working__hint">Prime is working on it. Follow its thinking, plan and checks in the Copilot panel. The finished answer appears here.</p>
+    </div>
+  )
+}
 
 // ---------- Chart: failure rate (Dynatrace, mock) ----------
 

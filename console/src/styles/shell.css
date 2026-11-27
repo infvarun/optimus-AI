@@ -492,3 +492,21 @@ input.field:focus, .field--icon:focus-within { outline: 0; border-color: var(--p
 @media (prefers-reduced-motion: reduce) {
   .chart__line { stroke-dasharray: none; }
 }
+
+/* ---------- Process in the sidebar, final answer in the main area ---------- */
+.smsg--agent .smsg__status .runstatus { height: 28px; font-size: 12px; min-width: 0; }
+.smsg--agent.is-running { border-color: var(--primary-tint-strong); }
+.smsg--agent .plan { padding: var(--s-3); gap: var(--s-2); }
+.smsg--agent .plan__step { font-size: 13px; }
+.smsg--agent .activity { padding: var(--s-3); gap: var(--s-3); }
+.smsg--agent .activity__thinking { font-size: 12px; max-height: 220px; }
+.smsg--agent .tool__head { min-width: 0; }
+.smsg--agent .tool__sig, .smsg--agent .tool code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; min-width: 0; }
+.working {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-2);
+  min-height: 280px; padding: var(--s-8, 48px) var(--s-4); text-align: center;
+  border: 1px dashed var(--hairline); border-radius: var(--r-xl, 20px); background: var(--surface-soft);
+}
+.working__label { font-weight: 600; font-size: 15px; }
+.working__hint { max-width: 44ch; color: var(--steel); font-size: 14px; }
+.result__none { color: var(--steel); padding: var(--s-4) 0; }

@@ -1,10 +1,10 @@
-import { memo, useEffect, useRef, type ComponentProps } from 'react'
-import { ArrowUpRight, CircleCheck, CircleSlash, History, MessageSquare, Pin, X } from 'lucide-react'
+import { memo, useEffect, useRef, useState, type ComponentProps } from 'react'
+import { ArrowUpRight, History, MessageSquare, Pin, X } from 'lucide-react'
 import type { Message } from '../data/mock'
 import type { CmdbApp, DirTeam } from '../data/directory'
 import { Markdown } from './Markdown'
 import { PromptBox } from './PromptBox'
-import { toolLabel } from './AgentRun'
+import { Activity, PlanCard, RunStatus } from './AgentRun'
 
 type AgentMessage = Extract<Message, { role: 'agent' }>
 export type SideTab = 'chat' | 'pinned' | 'history'
@@ -40,24 +40,30 @@ function firstPara(md: string) {
   return p ?? ''
 }
 
+/**
+ * One agent run in the sidebar. The working process lives here: status, thought process,
+ * plan and checks. The main area only shows the finished answer.
+ */
 const AgentLine = memo(function AgentLine({ m, selected, onSelect }: { m: AgentMessage; selected: boolean; onSelect: () => void }) {
   const running = !!m.streaming
-  const current = running ? [...(m.tools ?? [])].reverse().find((t) => t.status === 'running') : undefined
+  const [open, setOpen] = useState<boolean | null>(null)
+  const activityOpen = open ?? running
   const preview = m.resolution?.summary ?? firstPara(m.text)
   return (
-    <li className={`smsg smsg--agent${selected ? ' is-selected' : ''}`}>
+    <li className={`smsg smsg--agent${selected ? ' is-selected' : ''}${running ? ' is-running' : ''}`}>
       <div className="smsg__status">
-        {running ? <span className="orb" aria-hidden="true" /> : m.error || m.outcome === 'stopped' ? <CircleSlash size={14} aria-hidden="true" /> : <CircleCheck size={14} className="runstatus__done" aria-hidden="true" />}
-        <span className={running ? 'shimmer' : ''}>
-          {running ? `${current ? toolLabel(current.name) : 'Working'}…` : m.error ? 'Didn’t finish' : m.outcome === 'stopped' ? 'Stopped' : 'Done'}
-        </span>
+        <RunStatus m={m} open={activityOpen} onToggle={() => setOpen(!activityOpen)} />
         <time className="smsg__time">{m.time}</time>
       </div>
-      {preview && <div className="smsg__preview"><Markdown text={preview} /></div>}
+      {m.plan && <PlanCard goal={m.plan.goal} steps={m.plan.steps} running={running} />}
+      <Activity m={m} open={activityOpen} />
+      {!running && preview && <div className="smsg__preview"><Markdown text={preview} /></div>}
       {m.error && <p className="smsg__error">{m.error}</p>}
-      <button className="linkbtn" onClick={onSelect} aria-pressed={selected}>
-        {selected ? 'Showing in main area' : 'View output'} <ArrowUpRight size={14} aria-hidden="true" />
-      </button>
+      {!running && (
+        <button className="linkbtn" onClick={onSelect} aria-pressed={selected}>
+          {selected ? 'Showing in main area' : 'View output'} <ArrowUpRight size={14} aria-hidden="true" />
+        </button>
+      )}
     </li>
   )
 })
