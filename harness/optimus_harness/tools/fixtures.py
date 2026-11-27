@@ -16,7 +16,9 @@ wrong).
 
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 
@@ -325,16 +327,115 @@ DT_LOGS: list[dict] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Console catalog: the apps, teams and incidents the console shows (catalog.json,
+# exported from console/src/data/directory.ts). Merged in so every app and incident
+# a user can pick in the console is known here too. The hand-written records above
+# stay richer (close notes, changes, KB, logs) for the three demo apps.
+# ---------------------------------------------------------------------------
+
+_CATALOG = json.loads((Path(__file__).with_name("catalog.json")).read_text(encoding="utf-8"))
+_PRIORITY = {1: "1 - Critical", 2: "2 - High", 3: "3 - Moderate", 4: "4 - Low"}
+_CRIT = {1: "1 - most critical", 2: "2 - somewhat critical", 3: "3 - less critical"}
+_UNIT_MIN = {"min": 1, "h": 60, "days": 1440}
+
+
+def _uid(name: str) -> str:
+    first, _, last = name.lower().partition(" ")
+    return (first[:1] + last.replace(" ", "")) or first
+
+
+def _minutes_ago(text: str) -> float:
+    m = re.match(r"(\d+)\s*(min|h|days)", text or "")
+    return int(m.group(1)) * _UNIT_MIN[m.group(2)] if m else 60
+
+
+def _merge_catalog() -> None:
+    teams = {t["assignmentGroup"]: t for t in _CATALOG["teams"]}
+    by_name = {a["name"]: a for a in APPS}
+    for c in _CATALOG["apps"]:
+        app = by_name.get(c["name"])
+        if app is None:
+            t = teams.get(c["queue"], {})
+            team = {
+                "name": t.get("name", c["queue"]),
+                "assignmentGroup": c["queue"],
+                "leads": [_person(n, _uid(n)) for n in t.get("leads", [])],
+                "members": [],
+                "onCall": _uid(t["leads"][0]) if t.get("leads") else None,
+            }
+            app = {
+                "sysId": c["sysId"],
+                "name": c["name"],
+                "aliases": [],
+                "kind": c["kind"],
+                "businessCriticality": _CRIT[c["criticality"]],
+                "environment": "production",
+                "team": team,
+                "dynatraceEntityId": c["dynatraceEntityId"],
+                "dependsOn": c["dependsOn"],
+            }
+            if c.get("vendor"):
+                app["vendor"] = f"{c['vendor']} (fictional)"
+            APPS.append(app)
+            DT_METRICS.setdefault(
+                c["dynatraceEntityId"],
+                {
+                    "entityId": c["dynatraceEntityId"],
+                    "responseTimeP90Ms": 520 if c["health"] == "healthy" else 2900,
+                    "failureRatePct": 0.2 if c["health"] == "healthy" else 6.8,
+                    "throughputPerMin": 120,
+                    "baseline": {"responseTimeP90Ms": 500, "failureRatePct": 0.2, "throughputPerMin": 125},
+                },
+            )
+        app["ciId"] = c["ciId"]
+        app["service"] = c["service"]
+        if c.get("offering"):
+            app["serviceOffering"] = c["offering"]
+        app["aliases"] = list(dict.fromkeys([*app["aliases"], c["ciId"].lower()]))
+
+    known = {i["number"] for i in INCIDENTS}
+    for i in _CATALOG["incidents"]:
+        if i["number"] in known:
+            continue
+        rec = {
+            "number": i["number"],
+            "shortDescription": f"{i['ci']}: {i['title']}",
+            "state": i["state"],
+            "priority": _PRIORITY[i["priority"]],
+            "cmdbCi": i["ci"],
+            "businessService": i["service"],
+            "assignmentGroup": i["queue"],
+            "assignedTo": i["assignedTo"],
+            "openedBy": i["openedBy"],
+            "openedAt": _ago(_minutes_ago(i["updated"]) + 30),
+        }
+        if i.get("offering"):
+            rec["serviceOffering"] = i["offering"]
+        if i["state"] == "Resolved":
+            rec["resolvedAt"] = _ago(_minutes_ago(i["updated"]))
+            rec["closeNotes"] = "Resolved by the support team; no root-cause write-up attached (demo data)."
+        INCIDENTS.append(rec)
+
+
+_merge_catalog()
+
+
 def find_app(name_or_alias: str) -> dict | None:
     """Resolve a user-typed app name or alias to its CMDB record."""
     q = name_or_alias.strip().lower()
     for a in APPS:
-        if a["name"].lower() == q or q in a["aliases"]:
+        if a["name"].lower() == q or q in a["aliases"] or q == a["sysId"]:
             return a
     for a in APPS:
         if q in a["name"].lower() or any(q in alias for alias in a["aliases"]):
             return a
     return None
+
+
+def find_incident(number: str) -> dict | None:
+    n = number.strip().upper()
+    return next((i for i in INCIDENTS if i["number"] == n), None)
 
 
 def known_apps() -> str:

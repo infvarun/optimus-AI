@@ -16,7 +16,7 @@ from typing import Optional
 from copilot import define_tool
 from pydantic import BaseModel, Field
 
-from .fixtures import APPS, CHANGES, INCIDENTS, KB_ARTICLES, find_app, fixture_now, known_apps, parse_ts, present
+from .fixtures import APPS, CHANGES, INCIDENTS, KB_ARTICLES, find_app, find_incident, fixture_now, known_apps, parse_ts, present
 
 APP_DESC = "Application name or alias as the user said it, e.g. 'Clinical Supply Portal' or 'csp'"
 ACTIVE_STATES = {"New", "In Progress", "On Hold"}
@@ -53,27 +53,46 @@ cmdb_lookup = define_tool(
 
 
 class IncidentSearchParams(BaseModel):
-    app: str = Field(description=APP_DESC)
+    app: Optional[str] = Field(
+        default=None, description=APP_DESC + ", or its CI ID. Omit when you only have an incident number."
+    )
     active_only: bool = Field(default=False, description="Only New / In Progress / On Hold incidents")
-    query: Optional[str] = Field(default=None, description="Text to match in the short description or close notes")
+    query: Optional[str] = Field(
+        default=None, description="Incident number, or text to match in the short description or close notes"
+    )
     limit: int = Field(default=10, ge=1, le=25)
 
 
 async def incident_search_handler(params: IncidentSearchParams) -> dict:
-    ci = find_app(params.app)
-    if not ci:
-        return {"stub": True, "error": f"Unknown application {params.app!r}. Known: {known_apps()}"}
-    q = (params.query or "").lower()
+    q = (params.query or "").strip().lower()
+    exact = find_incident(q) if q.startswith("inc") else None
+    ci = find_app(params.app) if params.app else None
+    if params.app and not ci:
+        if not exact:
+            return {"stub": True, "error": f"Unknown application {params.app!r}. Known: {known_apps()}"}
+        ci = find_app(exact["cmdbCi"])
+    if exact:
+        # An incident number: return that incident plus others on the same app, so
+        # "find similar" has something to compare against.
+        ci = ci or find_app(exact["cmdbCi"])
+        others = [i for i in INCIDENTS if i["cmdbCi"] == exact["cmdbCi"] and i["number"] != exact["number"]]
+        others.sort(key=lambda i: i["openedAt"], reverse=True)
+        return present({
+            "stub": True, "app": exact["cmdbCi"], "incident": exact,
+            "count": len(others[: params.limit]), "otherIncidentsOnApp": others[: params.limit],
+        })
+    if not ci and not q:
+        return {"stub": True, "error": "Give an app (name or CI ID) or an incident number."}
     hits = [
         i
         for i in INCIDENTS
-        if i["cmdbCi"] == ci["name"]
+        if (not ci or i["cmdbCi"] == ci["name"])
         and (not params.active_only or i["state"] in ACTIVE_STATES)
-        and (not q or q in f"{i['shortDescription']} {i.get('closeNotes', '')}".lower())
+        and (not q or q in f"{i['number']} {i['shortDescription']} {i.get('closeNotes', '')}".lower())
     ]
     hits.sort(key=lambda i: i["openedAt"], reverse=True)
     hits = hits[: params.limit]
-    return present({"stub": True, "app": ci["name"], "count": len(hits), "incidents": hits})
+    return present({"stub": True, "app": ci["name"] if ci else None, "count": len(hits), "incidents": hits})
 
 
 incident_search = define_tool(

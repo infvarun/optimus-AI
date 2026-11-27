@@ -27,7 +27,9 @@ async def test_cmdb_lookup_resolves_alias_team_and_entity():
 
 async def test_incident_search_active_and_history():
     r = await incident_search_handler(IncidentSearchParams(app="Clinical Supply Portal", active_only=True))
-    assert [i["number"] for i in r["incidents"]] == ["INC0104521"]
+    nums = [i["number"] for i in r["incidents"]]
+    assert nums[0] == "INC0104521"
+    assert all(i["state"] in {"New", "In Progress", "On Hold"} for i in r["incidents"])
     past = await incident_search_handler(IncidentSearchParams(app="csp", query="pool"))
     assert past["incidents"][0]["number"] == "INC0103990"
 
@@ -92,3 +94,15 @@ async def test_times_are_fresh_and_readable():
     assert ch["plannedEndRelative"] == "15 min ago"  # still 15 minutes ago two hours later
     assert ch["plannedEnd"].startswith((T0 + timedelta(hours=2) - timedelta(minutes=15)).isoformat()[:16])
     assert present({"at": (T0 + timedelta(minutes=125)).isoformat()}, now=T0)["atRelative"] == "in 2 h 5 min"
+
+
+async def test_console_apps_and_incidents_are_known():
+    # Every app the console offers resolves here, by name or CI ID.
+    r = await cmdb_lookup_handler(CmdbLookupParams(app="Invoice Capture"))
+    assert r["name"] == "Invoice Capture" and r["ciId"] == "CI0001012"
+    assert (await cmdb_lookup_handler(CmdbLookupParams(app="CI0001012")))["name"] == "Invoice Capture"
+    r = await incident_search_handler(IncidentSearchParams(app="Invoice Capture", query="INC0102689"))
+    assert r["incident"]["number"] == "INC0102689"
+    assert r["otherIncidentsOnApp"], "find-similar needs other incidents on the same app"
+    r = await incident_search_handler(IncidentSearchParams(query="INC0102689"))
+    assert r["app"] == "Invoice Capture"
