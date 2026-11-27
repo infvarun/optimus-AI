@@ -6,6 +6,7 @@ import { OnboardingCanvas } from './components/OnboardingCanvas'
 import { TeamAppsModal } from './components/TeamAppsModal'
 import { IncidentBoard } from './components/IncidentBoard'
 import { ResultView } from './components/ResultView'
+import { ConfigCanvas } from './components/ConfigCanvas'
 import { CopilotSidebar, type HistoryItem, type SideTab } from './components/CopilotSidebar'
 import { Markdown } from './components/Markdown'
 import { MascotDock, type Mood } from './mascot/MascotDock'
@@ -68,6 +69,9 @@ export default function App() {
   const [idle, setIdle] = useState(false)
   /** True while a name is flying into place, so the next nudge waits for the landing. */
   const [transit, setTransit] = useState(false)
+  /** The app whose configuration canvas is open. */
+  const [configApp, setConfigApp] = useState<CmdbApp | null>(null)
+  const [configMood, setConfigMood] = useState<Mood>({ expression: 'happy', prop: 'clipboard' })
   const { health, live, busy, runLive, runScripted, stop, session } = useAgentRuns(setMessages)
 
   useEffect(() => saveJson('optimus.pinned.v1', pinned), [pinned])
@@ -253,6 +257,7 @@ export default function App() {
       startOver()
       setView('home')
     }
+    setConfigApp((c) => (c?.ciId === a.ciId ? null : c))
     ws.removeApp(teamId, a.ciId)
     showToast(`Removed ${a.name}.`)
   }, [ws, startOver, showToast])
@@ -264,6 +269,7 @@ export default function App() {
       startOver()
       setView('home')
     }
+    setConfigApp(null)
     ws.removeTeam(teamId)
     if (ws.teams.length <= 1) setModal(false)
     showToast(own ? `Deleted ${t?.name ?? 'the team'}.` : `You left ${t?.name ?? 'the team'}.`)
@@ -271,6 +277,7 @@ export default function App() {
 
   const reset = useCallback(() => {
     startOver()
+    setConfigApp(null)
     ws.reset()
     setHistory([])
     setPinned([])
@@ -295,7 +302,8 @@ export default function App() {
   const flyingMood: Mood | null = transit ? { expression: 'joy', prop: 'wave' } : null
 
   const lastRunFailed = !busy && !!latestRun?.error
-  const mood: Mood = onboarding ? canvasMood
+  const mood: Mood = configApp ? configMood
+    : onboarding ? canvasMood
     : flyingMood ? flyingMood
     : busy ? { expression: 'focused', pose: 'laptop' }
     : note?.mood ? note.mood
@@ -342,15 +350,26 @@ export default function App() {
       <a href="#main" className="skip">Skip to content</a>
       <NavBar
         teamName={ws.team?.name ?? null}
-        mascotAway={onboarding !== null}
+        mascotAway={onboarding !== null || configApp !== null}
         bubble={bubble}
         onMascotClick={onMascotClick}
         onTeamClick={() => setModal(true)}
-        onHome={() => { setOnboarding(null); setView('home') }}
+        onHome={() => { setOnboarding(null); setConfigApp(null); setView('home') }}
         onReset={reset}
       />
 
-      {view === 'home' ? (
+      {configApp ? (
+        <main id="main" className="cfgmain">
+          <ConfigCanvas
+            key={configApp.ciId}
+            app={configApp}
+            teamName={ws.team?.name ?? null}
+            setMood={setConfigMood}
+            onClose={() => setConfigApp(null)}
+            onSaved={showToast}
+          />
+        </main>
+      ) : view === 'home' ? (
         <main id="main" className="home">
           {onboarding ? (
             <OnboardingCanvas
@@ -409,7 +428,7 @@ export default function App() {
               </div>
               <div className="ws__actions">
                 {ws.team && <button className="btn btn--secondary btn--sm" onClick={() => setModal(true)}><Boxes size={14} aria-hidden="true" /> Switch app</button>}
-                {ws.app && <button className="btn btn--secondary btn--sm" onClick={() => showToast('The app configuration canvas is coming next.')}><Settings2 size={14} aria-hidden="true" /> Configure</button>}
+                {ws.app && <button className="btn btn--secondary btn--sm" onClick={() => setConfigApp(ws.app)}><Settings2 size={14} aria-hidden="true" /> Configure</button>}
               </div>
             </header>
 
@@ -484,7 +503,7 @@ export default function App() {
           appsOf={ws.appsOf}
           onSwitchTeam={ws.setTeam}
           onGo={goApp}
-          onConfigure={() => showToast('The app configuration canvas is coming next.')}
+          onConfigure={(a) => { setModal(false); setConfigApp(a) }}
           onAddApp={startApp}
           onAddTeam={startTeam}
           onRemoveApp={removeApp}
@@ -508,7 +527,7 @@ export default function App() {
 
       {toast && <div className="toast" role="status">{toast}</div>}
 
-      <MascotDock anchor={onboarding ? 'canvas' : 'nav'} mood={mood} label={`Prime looks ${busy ? 'busy on a laptop' : mood.expression}`} />
+      <MascotDock anchor={configApp ? 'config' : onboarding ? 'canvas' : 'nav'} mood={mood} label={`Prime looks ${busy ? 'busy on a laptop' : mood.expression}`} />
     </div>
   )
 }

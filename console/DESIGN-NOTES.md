@@ -83,7 +83,13 @@ Rebuilt the console around Varun's hand-sketched flow. Everything is still mock 
 3. Team dropdown opens a modal of the team's apps, 4 per page, with search, *Configure* and *Go*.
    Each card has a remove button, and the modal footer has *Delete team* (teams created in Optimus) or *Leave team*
    (directory teams). Both ask for an inline confirmation first.
-   Configure shows a "coming next" toast: the app configuration canvas is deferred.
+   Configure opens the app configuration canvas (sketch page 5): the app node branches to Stg and Prod, and each
+   environment branches to four nodes: ServiceNow (queue required, service preferred, offering optional),
+   Dynatrace (entity, zone, tags), Endpoints (URLs, hosts) and App skill (runbooks, notes for Prime). The right
+   panel edits the selected node and saves at the bottom. Environments can be switched off or set to "Read only" /
+   "Can propose changes". Defaults come from the CMDB record; saves go to localStorage (`optimus.appconfig.v1`).
+   The four child node types are a GUESS (the sketch leaves them unlabelled). Prime sits in the canvas header and
+   reacts: curious while you edit, thinking at a required gap, confetti on save.
 4. *Go* (or asking a question) opens the app workspace: navbar, main area, Copilot sidebar on the right.
    Main area: time-of-day greeting and ServiceNow incidents filtered by queue (mandatory, locked), service
    (preferred, on) and service offering (optional, off). Tabs: Assigned to me, Created by me, All in queue. Search.
@@ -111,4 +117,4 @@ floats instead of walking, and a faint aura pulses behind it, so the motion stay
 **Kept in localStorage** (all reads/writes guarded): teams joined or created, team apps, active app, pinned
 answers, history. *Reset demo setup* in the avatar menu clears it.
 
-**Deferred:** app configuration canvas (Stg/Prod nodes), agent-created tools, real team/app APIs, role checks.
+**Deferred:** wiring saved app config into the incident board and the harness, agent-created tools, real team/app APIs, role checks.
