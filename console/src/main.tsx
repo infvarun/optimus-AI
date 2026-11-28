@@ -4,6 +4,8 @@ import '@fontsource-variable/figtree'
 import '@fontsource-variable/jetbrains-mono'
 import './styles/tokens.css'
 import './styles/app.css'
+import './styles/shell.css'
+import './styles/config.css'
 import App from './App'
 
 createRoot(document.getElementById('root')!).render(
