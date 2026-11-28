@@ -315,7 +315,7 @@ export default function App() {
   const onMascotClick = () => {
     if (ws.state.nudgeDismissed && (!ws.team || ws.teamApps.length === 0)) return ws.dismissNudge(false)
     flashNote({
-      text: ws.app ? <>I’m Prime. I’m looking after <strong>{ws.app.name}</strong> with you.</> : 'I’m Prime, your support sidekick.',
+      text: ws.app ? <>I’m Prime, the Optimus assistant. I’m looking after <strong>{ws.app.name}</strong> with you.</> : 'I’m Prime, the Optimus assistant.',
       actions: ws.team ? [{ label: 'Team apps', onClick: () => { setNote(null); setModal(true) } }, { label: 'Add an app', onClick: () => { setNote(null); startApp() } }] : [{ label: 'Set up a team', primary: true, onClick: startTeam }],
     })
   }
@@ -383,6 +383,7 @@ export default function App() {
           ) : (
             <div className="home__inner">
               <h1 className="home__title">{greeting()}, {first}. <span>How can Prime help you today?</span></h1>
+              <p className="home__intro">Prime is the Optimus assistant. It checks ServiceNow and Dynatrace for your apps and explains what it finds.</p>
               <PromptBox variant="hero" {...promptProps} autoFocus />
               <div className="home__sugg">
                 {suggestions.map((s) => <button key={s} className="chip" onClick={() => send(s)} disabled={busy}>{s}</button>)}
@@ -491,8 +492,8 @@ export default function App() {
               }}
             />
           </div>
-          <button className="fab" onClick={() => setCopilotOpen(true)} aria-label="Open Copilot"><MessageSquare size={18} aria-hidden="true" /> Ask Prime</button>
-          {copilotOpen && <button className="scrim scrim--side" aria-label="Close Copilot" onClick={() => setCopilotOpen(false)} />}
+          <button className="fab" onClick={() => setCopilotOpen(true)} aria-label="Open chat with Prime"><MessageSquare size={18} aria-hidden="true" /> Ask Prime</button>
+          {copilotOpen && <button className="scrim scrim--side" aria-label="Close chat" onClick={() => setCopilotOpen(false)} />}
         </div>
       )}
 

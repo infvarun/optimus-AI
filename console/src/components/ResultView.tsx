@@ -71,11 +71,12 @@ export const ResultView = memo(function ResultView({ run, app, incident, pinned,
     <section className="result" aria-labelledby="result-title">
       <header className="result__head">
         <div className="result__mascot" aria-hidden="true">
-          <Mascot size={44} pose={run.streaming ? 'laptop' : 'stand'} expression={run.streaming ? 'focused' : run.error ? 'sad' : 'joy'} />
+          <Mascot size={36} pose={run.streaming ? 'laptop' : 'stand'} expression={run.streaming ? 'focused' : run.error ? 'sad' : 'joy'} />
         </div>
         <div className="result__titles">
-          <p className="eyebrow">{incident ? <><span className="mono">{incident.number}</span> · {app?.name}</> : app ? app.name : 'General answer · global skill'}</p>
-          <h2 id="result-title" className="result__title">{run.prompt}</h2>
+          {/* The question itself stays in the chat on the right; here a compact context line is enough. */}
+          <h2 id="result-title" className="result__title">{!done ? 'Working on it' : run.plan && !run.resolution && !run.text.trim() ? 'Plan' : 'Answer'}</h2>
+          <p className="result__ctx">{incident ? <><span className="mono">{incident.number}</span> · {app?.name}</> : app ? app.name : 'General answer · global skill'} · {run.time}</p>
         </div>
         <div className="result__actions">
           <button className="btn btn--secondary btn--sm" onClick={onTogglePin} aria-pressed={pinned} disabled={!done}>
@@ -149,7 +150,7 @@ export const ResultView = memo(function ResultView({ run, app, incident, pinned,
   )
 })
 
-/** Placeholder while the run works. The live process is in the Copilot sidebar. */
+/** Placeholder while the run works. The live process is in the chat on the right. */
 function Working({ run }: { run: AgentMessage }) {
   const current = [...(run.tools ?? [])].reverse().find((t) => t.status === 'running' && t.name !== 'update_plan')
   const label = current ? toolLabel(current.name) : PHASE_LABEL[run.phase ?? 'starting']
@@ -157,7 +158,7 @@ function Working({ run }: { run: AgentMessage }) {
     <div className="working" role="status">
       <Mascot size={88} pose="laptop" expression="focused" />
       <p className="working__label shimmer">{label}…</p>
-      <p className="working__hint">Prime is working on it. Follow its thinking, plan and checks in the Copilot panel. The finished answer appears here.</p>
+      <p className="working__hint">Prime, your Optimus assistant, is on it. Follow its thinking, plan and checks in the chat on the right. The finished answer appears here.</p>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { ArrowUp, Boxes, Check, ChevronDown, Cpu, Plus, Sparkles, Square, X } from 'lucide-react'
+import { ArrowUp, Bot, Boxes, Check, ChevronDown, Cpu, ListChecks, MessageCircle, Plus, Sparkles, Square, X } from 'lucide-react'
 import type { CmdbApp } from '../data/directory'
 import type { CopilotMode } from '../run/demoScripts'
 
@@ -23,10 +23,10 @@ interface Props {
   autoFocus?: boolean
 }
 
-const modes: { id: CopilotMode; label: string; hint: string }[] = [
-  { id: 'ask', label: 'Ask', hint: 'Answers from your skills: app first, then team, then global' },
-  { id: 'plan', label: 'Plan', hint: 'Writes a Plan.md for this session and waits for you' },
-  { id: 'agent', label: 'Agent', hint: 'Investigates with tools, step by step, until it has an answer' },
+const modes: { id: CopilotMode; label: string; hint: string; Icon: typeof MessageCircle }[] = [
+  { id: 'ask', label: 'Ask', hint: 'Ask: a direct answer to a question, using your app, team and global skills.', Icon: MessageCircle },
+  { id: 'plan', label: 'Plan', hint: 'Plan: Prime writes a step-by-step plan and waits for your go-ahead.', Icon: ListChecks },
+  { id: 'agent', label: 'Agent', hint: 'Agent: Prime investigates with ServiceNow and Dynatrace until it has an answer.', Icon: Bot },
 ]
 
 function Popover({ label, icon, children, className = '', flyTarget }: { label: string; icon: React.ReactNode; children: (close: () => void) => React.ReactNode; className?: string; flyTarget?: string }) {
@@ -140,12 +140,25 @@ export const PromptBox = memo(function PromptBox(p: Props) {
             </>
           )}
         </Popover>
-        <div className="seg" role="radiogroup" aria-label="Mode">
-          {modes.map((m) => (
-            <button key={m.id} type="button" role="radio" aria-checked={p.mode === m.id} title={m.hint} className={`seg__opt${p.mode === m.id ? ' is-on' : ''}`} onClick={() => p.onModeChange(m.id)}>
-              {m.label}
-            </button>
-          ))}
+        <div className="modes" role="radiogroup" aria-label="Mode">
+          <span className="modes__label" aria-hidden="true">Mode</span>
+          <div className="seg seg--modes">
+            {modes.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                role="radio"
+                aria-checked={p.mode === m.id}
+                aria-label={m.label}
+                aria-describedby={`${p.variant}-mode-${m.id}`}
+                className={`seg__opt${p.mode === m.id ? ' is-on' : ''}`}
+                onClick={() => p.onModeChange(m.id)}
+              >
+                <m.Icon size={14} aria-hidden="true" /> <span className="seg__text">{m.label}</span>
+                <span role="tooltip" id={`${p.variant}-mode-${m.id}`} className="tip">{m.hint}</span>
+              </button>
+            ))}
+          </div>
         </div>
         <span className="pbox__spacer" />
         {p.busy && p.onStop ? (

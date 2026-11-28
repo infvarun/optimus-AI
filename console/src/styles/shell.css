@@ -112,7 +112,7 @@
 .has-bubble .home { padding-top: max(196px, clamp(40px, 10vh, 120px)); }
 .home__inner { width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: var(--s-5); animation: rise 360ms var(--ease) both; }
 .home__title { font-size: clamp(26px, 3.4vw, 36px); font-weight: 600; letter-spacing: -0.8px; line-height: 1.2; text-wrap: balance; }
-.home__title span { display: block; color: var(--stone); font-weight: 500; }
+.home__title span { display: block; color: var(--steel); font-weight: 500; }
 .home__sugg { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: calc(var(--s-2) * -1); }
 .home .chip, .copilot .chip { white-space: normal; text-align: left; }
 
@@ -311,7 +311,7 @@ input.field:focus, .field--icon:focus-within { outline: 0; border-color: var(--p
 .ws { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 400px; }
 .ws__main { min-width: 0; overflow-y: auto; padding: var(--s-6) var(--s-8) var(--s-10); display: flex; flex-direction: column; gap: var(--s-5); background: var(--canvas); }
 .ws__head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap; }
-.ws__greet { color: var(--stone); font-size: 15px; }
+.ws__greet { color: var(--steel); font-size: 15px; }
 .ws__title { display: flex; align-items: center; gap: var(--s-3); font-size: 28px; font-weight: 600; letter-spacing: -0.6px; }
 .ws__ci { font-size: 13px; color: var(--stone); font-weight: 400; }
 .ws__actions { display: flex; gap: var(--s-2); }
@@ -510,3 +510,38 @@ input.field:focus, .field--icon:focus-within { outline: 0; border-color: var(--p
 .working__label { font-weight: 600; font-size: 15px; }
 .working__hint { max-width: 44ch; color: var(--steel); font-size: 14px; }
 .result__none { color: var(--steel); padding: var(--s-4) 0; }
+
+/* ---------- Mode switch: labelled, with icons and tooltips ---------- */
+.modes { display: inline-flex; align-items: center; gap: 6px; }
+.modes__label { font-size: 12px; font-weight: 600; color: var(--steel); }
+.seg--modes { border-color: var(--hairline-strong); background: var(--surface); }
+.seg--modes .seg__opt { position: relative; display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; color: var(--slate); }
+.seg--modes .seg__opt:hover { color: var(--ink); background: var(--canvas); }
+.seg--modes .seg__opt.is-on { background: var(--primary); color: var(--on-primary); box-shadow: var(--shadow-1); font-weight: 600; }
+.seg--modes .seg__opt:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.tip {
+  position: absolute; bottom: calc(100% + 10px); left: 50%; z-index: 30; width: max-content; max-width: 240px;
+  padding: 8px 10px; border-radius: var(--r-md); background: var(--ink); color: var(--canvas);
+  font-size: 12px; font-weight: 400; line-height: 1.4; text-align: left; white-space: normal;
+  box-shadow: var(--shadow-4); pointer-events: none;
+  opacity: 0; transform: translate(-50%, 4px); transition: opacity 140ms var(--ease), transform 140ms var(--ease);
+}
+.tip::after { content: ''; position: absolute; top: 100%; left: 50%; margin-left: -5px; border: 5px solid transparent; border-top-color: var(--ink); }
+.seg__opt:hover .tip, .seg__opt:focus-visible .tip { opacity: 1; transform: translate(-50%, 0); transition-delay: 250ms; }
+.pbox--sidebar .pbox__bar { flex-wrap: wrap; row-gap: 8px; }
+.pbox--sidebar .modes { order: -1; flex: 1 0 100%; }
+.pbox--sidebar .seg--modes .seg__opt { padding: 0 10px; }
+.pbox--sidebar .pop { flex: 0 1 auto; max-width: calc(100% - 92px); }
+/* Sidebar run status: one line, label truncates, numbers stay whole. */
+.smsg__status .runstatus { flex: 0 1 auto; max-width: calc(100% - 44px); }
+.smsg__status .runstatus__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.smsg__status .runstatus__meta { flex: none; white-space: nowrap; }
+.pbox--sidebar .seg--modes .seg__opt:last-child .tip { left: auto; right: -8px; transform: translate(0, 4px); }
+.pbox--sidebar .seg--modes .seg__opt:last-child:hover .tip, .pbox--sidebar .seg--modes .seg__opt:last-child:focus-visible .tip { transform: none; }
+.pbox--sidebar .seg--modes .seg__opt:last-child .tip::after { left: auto; right: 18px; }
+
+/* ---------- Result header: compact context, the question stays in chat ---------- */
+.result__mascot { width: 44px; height: 44px; border-radius: 14px; }
+.result__title { font-size: 18px; }
+.result__ctx { font-size: 13px; color: var(--steel); }
+.home__intro { margin-top: calc(-1 * var(--s-2)); color: var(--steel); font-size: 15px; }

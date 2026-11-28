@@ -83,12 +83,12 @@ export function CopilotSidebar(p: Props) {
   ]
 
   return (
-    <aside className="copilot" aria-label="Copilot">
-      <div className="copilot__tabs tabs" role="tablist" aria-label="Copilot">
+    <aside className="copilot" aria-label="Prime, the Optimus assistant">
+      <div className="copilot__tabs tabs" role="tablist" aria-label="Prime">
         <button role="tab" aria-selected={p.tab === 'chat'} className={`tab${p.tab === 'chat' ? ' is-on' : ''}`} onClick={() => p.onTab('chat')}><MessageSquare size={14} aria-hidden="true" /> Chat</button>
         <button role="tab" aria-selected={p.tab === 'pinned'} className={`tab${p.tab === 'pinned' ? ' is-on' : ''}`} onClick={() => p.onTab('pinned')}><Pin size={14} aria-hidden="true" /> Pinned{p.pinned.length > 0 && <span className="tab__count">{p.pinned.length}</span>}</button>
         <button role="tab" aria-selected={p.tab === 'history'} className={`tab${p.tab === 'history' ? ' is-on' : ''}`} onClick={() => p.onTab('history')}><History size={14} aria-hidden="true" /> History</button>
-        {p.onClose && <button className="icon-btn copilot__close" aria-label="Close Copilot" onClick={p.onClose}><X size={18} /></button>}
+        {p.onClose && <button className="icon-btn copilot__close" aria-label="Close chat" onClick={p.onClose}><X size={18} /></button>}
       </div>
 
       {p.tab === 'chat' && (

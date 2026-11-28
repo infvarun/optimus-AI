@@ -57,7 +57,7 @@ export function NavBar({ teamName, mascotAway, bubble, onMascotClick, onTeamClic
         <button
           className={`nav__mascot${mascotAway ? ' is-away' : ''}`}
           onClick={onMascotClick}
-          aria-label="Prime, your assistant"
+          aria-label="Prime, the Optimus assistant"
           data-mascot-anchor={mascotAway ? undefined : 'nav'}
         />
         {bubble && !mascotAway && (

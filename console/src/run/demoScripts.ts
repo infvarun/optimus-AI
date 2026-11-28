@@ -157,7 +157,7 @@ export const incidentScript = (app: CmdbApp, inc: SnIncident) =>
       { name: 'servicenow_incident_search', args: { ci: app.name, query: inc.title, state: 'Resolved' }, ms: 550, result: 'INC0099112  Resolved  similar symptoms, fixed by clearing the job queue (KB0012044)' },
     ],
     answer:
-      `**${inc.number}** (${inc.title.toLowerCase()}) looks like a repeat of **INC0099112**. ` +
+      `**${inc.number}** looks like a repeat of **INC0099112**. ` +
       `Dynatrace shows ${app.health === 'healthy' ? 'no open problems on' : 'a response-time problem on'} ${app.name}, so the cause is likely in the app, not the platform.\n\n` +
       '| Check | Result |\n|---|---|\n' +
       `| CMDB | ${app.name}, criticality ${app.criticality}, queue ${app.queue} |\n| Dynatrace | ${app.health === 'healthy' ? 'No open problems' : '1 open performance problem'} |\n| Similar incidents | INC0099112 (resolved with KB0012044) |\n\n` +
